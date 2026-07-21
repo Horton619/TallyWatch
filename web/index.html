@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>TallyWatch Setup</title>
+    <style>
+        :root {
+            --bg: #070910;
+            --bg-elevated: #10131c;
+            --bg-card: #161a26;
+            --bg-input: #0d0f18;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.18);
+            --text: #f5f6f8;
+            --text-dim: #9aa0ac;
+            --text-faint: #666c78;
+            --accent: #22d3ee;
+            --accent-hover: #67e8f9;
+            --accent-text: #05262e;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --slate: #64748b;
+            --radius-lg: 18px;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 32px 16px 90px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .eyebrow {
+            text-align: center;
+            font-size: 12px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        h1.wordmark {
+            text-align: center;
+            font-size: 30px;
+            font-weight: 700;
+            margin: 0 0 6px;
+            letter-spacing: -0.01em;
+        }
+
+        .device-id {
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-faint);
+            margin: 0 0 28px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .main_container {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            max-width: 420px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .btn {
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 16px;
+            border-radius: var(--radius-sm);
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--accent-text);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--border-strong);
+        }
+
+        .btn-secondary:hover {
+            color: var(--text);
+            border-color: var(--text-dim);
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--rose);
+            border: 1px solid rgba(244, 63, 94, 0.4);
+        }
+
+        .btn-danger:hover {
+            background: rgba(244, 63, 94, 0.12);
+        }
+
+        .btn-danger.confirming {
+            background: var(--rose);
+            color: #fff;
+            border-color: var(--rose);
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .save-status {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .save-status .dot {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--amber);
+            visibility: hidden;
+            box-shadow: 0 0 0 2px var(--bg-elevated);
+        }
+
+        .publish-note {
+            font-size: 12px;
+            color: var(--text-faint);
+            text-align: center;
+            margin: 0 0 18px;
+        }
+
+        .menu-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 15px 16px;
+            margin-bottom: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .menu-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .menu-row:hover {
+            border-color: var(--border-strong);
+        }
+
+        .menu-row .label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .menu-row .icon {
+            font-size: 18px;
+            width: 22px;
+            text-align: center;
+        }
+
+        .menu-row .chevron {
+            color: var(--text-faint);
+            font-size: 16px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 999px;
+            margin-left: 8px;
+        }
+
+        .status-pill.ok {
+            color: var(--emerald);
+            background: rgba(16, 185, 129, 0.14);
+        }
+
+        .status-pill.pending {
+            color: var(--amber);
+            background: rgba(245, 158, 11, 0.14);
+        }
+
+        .status-pill.error {
+            color: var(--rose);
+            background: rgba(244, 63, 94, 0.14);
+        }
+
+        /* Overlay + popup */
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 4, 8, 0.65);
+            backdrop-filter: blur(2px);
+            z-index: 900;
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 92%;
+            max-width: 440px;
+            max-height: 82vh;
+            overflow: auto;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            z-index: 901;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+        }
+
+        .popup_choice {
+            display: none;
+        }
+
+        .popup-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .popup h2 {
+            font-size: 20px;
+            margin: 0 0 2px;
+        }
+
+        .esc-hint {
+            font-size: 11px;
+            color: var(--text-faint);
+            margin: 0 0 18px;
+        }
+
+        .section {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 13px 15px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            background: var(--bg-card);
+            transition: background-color 0.15s ease;
+        }
+
+        .section-header:hover {
+            background: #1b202e;
+        }
+
+        .section-header .caret {
+            color: var(--text-faint);
+            transition: transform 0.15s ease;
+        }
+
+        .section-header.open .caret {
+            transform: rotate(180deg);
+        }
+
+        .section-body {
+            display: none;
+            padding: 16px 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        input[type='text'],
+        input[type='password'],
+        input[type='number'] {
+            width: 100%;
+            padding: 11px 12px;
+            margin-bottom: 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 15px;
+            font-family: inherit;
+        }
+
+        input[type='text']:focus,
+        input[type='password']:focus,
+        input[type='number']:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        input[type='checkbox'] {
+            width: 17px;
+            height: 17px;
+            accent-color: var(--accent);
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text);
+            font-weight: 500;
+            margin-bottom: 14px;
+            cursor: pointer;
+        }
+
+        .checkbox-row .hint {
+            display: block;
+            font-size: 12px;
+            color: var(--text-faint);
+            margin: 2px 0 0 27px;
+            font-weight: 400;
+        }
+
+        .password-wrap {
+            position: relative;
+        }
+
+        .password-wrap input {
+            padding-right: 56px;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--accent);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .ip-fields {
+            transition: opacity 0.2s ease, filter 0.2s ease;
+        }
+
+        .ip-fields.disabled {
+            opacity: 0.4;
+            filter: blur(1px);
+            pointer-events: none;
+        }
+
+        .wifi-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-bottom: 10px;
+            background: var(--bg-input);
+        }
+
+        .wifi-card .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .wifi-card .ssid {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .wifi-card .strength {
+            font-size: 12px;
+            color: var(--text-faint);
+        }
+
+        .wifi-card .expand {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .saved-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-input);
+            margin-bottom: 10px;
+        }
+
+        .saved-row .ssid {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .empty-slot {
+            font-size: 13px;
+            color: var(--text-faint);
+            font-style: italic;
+        }
+
+        .about-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .about-row:last-child {
+            border-bottom: none;
+        }
+
+        .about-row .k {
+            color: var(--text-dim);
+        }
+
+        .about-row .v {
+            color: var(--text);
+            font-weight: 600;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .file-btn {
+            display: inline-block;
+            background: var(--bg-input);
+            border: 1px solid var(--border-strong);
+            color: var(--text);
+            padding: 9px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .file-btn input {
+            display: none;
+        }
+
+        .file-name {
+            font-size: 13px;
+            color: var(--text-faint);
+            margin-left: 10px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 16px 0;
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 76px;
+            transform: translate(-50%, 12px);
+            background: var(--bg-card);
+            border: 1px solid var(--border-strong);
+            color: var(--text);
+            padding: 12px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+            z-index: 950;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+            pointer-events: auto;
+        }
+
+        .toast.error {
+            border-color: rgba(244, 63, 94, 0.5);
+        }
+
+        footer.vep-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            pointer-events: none;
+            padding: 10px 16px;
+            font-size: 11px;
+            color: var(--text-faint);
+            display: flex;
+            justify-content: space-between;
+            background: linear-gradient(to top, var(--bg) 60%, transparent);
+        }
+
+        footer.vep-footer a {
+            pointer-events: auto;
+            color: var(--text-faint);
+            text-decoration: none;
+        }
+
+        footer.vep-footer a:hover {
+            color: var(--text-dim);
+        }
+
+        @media (min-width: 480px) {
+            .main_container {
+                padding: 26px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="eyebrow">Visual Entropy Productions</div>
+    <h1 class="wordmark">TallyWatch Setup</h1>
+    <p class="device-id" id="device_id">LOADING…</p>
+
+    <div class="main_container">
+        <div class="top-actions">
+            <button class="btn btn-secondary" onclick="exitSetup()">Cancel / Exit</button>
+            <span class="save-status">
+                <button class="btn btn-primary" onclick="publishChanges()">Save Settings</button>
+                <span class="dot" id="unsaved-dot"></span>
+            </span>
+        </div>
+        <p class="publish-note">Saving restarts the device to apply changes.</p>
+
+        <div class="menu-row" onclick="showPopup('wifi')">
+            <div class="label"><span class="icon">📶</span>Network</div>
+            <span class="chevron">›</span>
+        </div>
+        <div class="menu-row" onclick="showPopup('companion')">
+            <div class="label"><span class="icon">🔗</span>Companion</div>
+            <span class="chevron">›</span>
+        </div>
+        <div class="menu-row" onclick="showPopup('device')">
+            <div class="label"><span class="icon">💡</span>Device</div>
+            <span class="chevron">›</span>
+        </div>
+        <div class="menu-row" onclick="showPopup('importexport')">
+            <div class="label"><span class="icon">⇅</span>Import / Export</div>
+            <span class="chevron">›</span>
+        </div>
+        <div class="menu-row" onclick="showPopup('about')">
+            <div class="label"><span class="icon">ℹ</span>About</div>
+            <span class="chevron">›</span>
+        </div>
+    </div>
+
+    <div id="overlay" class="overlay" onclick="handleOverlayClick(event)"></div>
+
+    <div id="popup" class="popup">
+
+        <!-- Network -->
+        <div class="popup_choice" id="wifi_popup">
+            <div class="popup-top">
+                <button class="btn btn-secondary" onclick="cancelChanges()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveWifi()">Save</button>
+            </div>
+            <h2>Network</h2>
+            <p class="esc-hint">Esc to close</p>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'saved_networks_body')">Saved Networks
+                    <span class="caret">⌄</span>
+                </div>
+                <div class="section-body" id="saved_networks_body"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'available_networks_body'); ">Available
+                    Networks <span class="caret">⌄</span></div>
+                <div class="section-body" id="available_networks_body">
+                    <button class="btn btn-secondary btn-block" style="margin-bottom:14px"
+                        onclick="getWifis(); clearWifiPallet();">Rescan</button>
+                    <div id="wifi_pallet_area"></div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'manual_add_body')">Manually Add <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="manual_add_body">
+                    <label for="manual_wifi_ssid">SSID</label>
+                    <input type="text" id="manual_wifi_ssid">
+                    <label for="manual_wifi_password">Password</label>
+                    <div class="password-wrap">
+                        <input type="password" id="manual_wifi_password">
+                        <span class="toggle-password" onclick="togglePassword('manual_wifi_password')">SHOW</span>
+                    </div>
+                    <button class="btn btn-secondary btn-block" onclick="addManualNetwork()">Add to Saved
+                        Networks</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'ipv4_body')">IPv4 Settings <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="ipv4_body">
+                    <label class="checkbox-row" for="dhcp_check">
+                        <input type="checkbox" id="dhcp_check" onclick="handleDHCPClick(this)">
+                        DHCP (automatic)
+                    </label>
+                    <div class="ip-fields" id="ip_fields">
+                        <label for="ip">IP Address</label>
+                        <input type="text" id="ip">
+                        <label for="gateway">Gateway</label>
+                        <input type="text" id="gateway">
+                        <label for="subnet">Subnet</label>
+                        <input type="text" id="subnet">
+                        <label for="dns">DNS</label>
+                        <input type="text" id="dns">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Companion -->
+        <div class="popup_choice" id="companion_popup">
+            <div class="popup-top">
+                <button class="btn btn-secondary" onclick="cancelChanges()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveCompanion()">Save</button>
+            </div>
+            <h2>Companion</h2>
+            <p class="esc-hint">Esc to close</p>
+
+            <label for="companion_ip">Companion PC IP Address</label>
+            <input type="text" id="companion_ip" placeholder="192.168.1.50">
+            <label for="companion_port">Satellite TCP Port</label>
+            <input type="text" id="companion_port" placeholder="16622">
+        </div>
+
+        <!-- Device -->
+        <div class="popup_choice" id="device_popup">
+            <div class="popup-top">
+                <button class="btn btn-secondary" onclick="cancelChanges()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveDevice()">Save</button>
+            </div>
+            <h2>Device</h2>
+            <p class="esc-hint">Esc to close</p>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'device_general_body')">General <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="device_general_body">
+                    <label class="checkbox-row" for="ultra_bright">
+                        <input type="checkbox" id="ultra_bright">
+                        Ultra Bright Mode
+                    </label>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'device_indicators_body')">Indicators <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="device_indicators_body">
+                    <label class="checkbox-row" for="wifi_indicator">
+                        <input type="checkbox" id="wifi_indicator">
+                        WiFi Connecting (blue)
+                    </label>
+                    <label class="checkbox-row" for="companion_indicator">
+                        <input type="checkbox" id="companion_indicator">
+                        Companion Connecting (red)
+                    </label>
+                    <label class="checkbox-row" for="setup_indicator">
+                        <input type="checkbox" id="setup_indicator">
+                        Setup Mode (green)
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import / Export -->
+        <div class="popup_choice" id="importexport_popup">
+            <div class="popup-top">
+                <button class="btn btn-secondary" onclick="closePopup()">Close</button>
+                <span></span>
+            </div>
+            <h2>Import / Export</h2>
+            <p class="esc-hint">Esc to close</p>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'import_body')">Import Config <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="import_body">
+                    <label class="file-btn">
+                        <input type="file" id="configImportFile" accept=".json" onchange="displayConfigImportName()">
+                        Choose File
+                    </label>
+                    <span class="file-name" id="config-import-name">No file chosen</span>
+                    <div class="divider"></div>
+                    <button class="btn btn-primary btn-block" onclick="uploadConfig()">Import Config</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'export_body')">Export Config <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="export_body">
+                    <button class="btn btn-secondary btn-block" onclick="exportConfig()">Export Config</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- About -->
+        <div class="popup_choice" id="about_popup">
+            <div class="popup-top">
+                <button class="btn btn-secondary" onclick="closePopup()">Close</button>
+                <span></span>
+            </div>
+            <h2>About</h2>
+            <p class="esc-hint">Esc to close</p>
+
+            <div class="about-row"><span class="k">Companion ID</span><span class="v" id="about_device_id"></span>
+            </div>
+            <div class="about-row"><span class="k">Firmware Version</span><span class="v"
+                    id="about_fw_version"></span></div>
+            <div class="about-row"><span class="k">Firmware Codename</span><span class="v" id="about_fw_name"></span>
+            </div>
+            <div class="about-row"><span class="k">Serial Number</span><span class="v" id="about_serial"></span>
+            </div>
+            <div class="about-row"><span class="k">MAC Address</span><span class="v" id="about_mac"></span></div>
+            <div class="about-row"><span class="k">Hardware Version</span><span class="v" id="about_hw"></span>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <footer class="vep-footer">
+        <span>&copy; 2026 Visual Entropy Productions</span>
+        <a href="https://veproductions.net" target="_blank" rel="noopener">veproductions.net</a>
+    </footer>
+
+    <script>
+        // Set true only for local/browser preview during development -- never true in the
+        // gzip build shipped to the device.
+        const DEV_MODE = true;
+
+        var oldSettings = {};
+
+        var settings = {
+            ssid1: "", pass1: "", ssid2: "", pass2: "", ssid3: "", pass3: "",
+            dhcp: "0", static_ip: "", static_gateway: "", static_subnet: "", static_dns: "",
+            wifi_indicator: "1", companion_indicator: "1", setup_indicator: "1",
+            ultra_bright: "0",
+            companion_ip: "", companion_port: "16622",
+        };
+
+        var scannedNetworks = { list: [] };
+
+        var about = {
+            device_id: "", firmware_version: "", firmware_name: "",
+            serial_number: "", mac_address: "", hardware_version: "0100",
+        };
+
+        function mockData() {
+            settings.ssid1 = "Stage Left Router";
+            settings.pass1 = "hunter2";
+            settings.companion_ip = "192.168.1.50";
+            settings.companion_port = "16622";
+            scannedNetworks.list = [
+                { ssid: "Stage Left Router", strength: "high" },
+                { ssid: "FOH-5G", strength: "medium" },
+                { ssid: "Guest WiFi", strength: "low" },
+            ];
+            about = {
+                device_id: "TallyWatch:AABBCC112233",
+                firmware_version: "1.0.0",
+                firmware_name: "First Light",
+                serial_number: "AABBCC112233",
+                mac_address: "AA:BB:CC:11:22:33",
+                hardware_version: "0100",
+            };
+        }
+
+        function init() {
+            if (DEV_MODE) {
+                mockData();
+                renderAll();
+                return;
+            }
+            getConfig();
+            getAbout();
+            getWifis();
+        }
+
+        function getConfig() {
+            fetch('/config').then(r => r.json()).then(data => { settings = data; renderSettings(); });
+        }
+
+        function getAbout() {
+            fetch('/about').then(r => r.json()).then(data => { about = data; renderAbout(); });
+        }
+
+        function getWifis() {
+            fetch('/wifi').then(r => r.json()).then(data => { scannedNetworks = data; renderScannedNetworks(); });
+        }
+
+        function renderAll() {
+            renderSettings();
+            renderAbout();
+            renderScannedNetworks();
+        }
+
+        function parseHardwareVersion(raw) {
+            const num = String(parseInt(raw, 10)).padStart(4, '0');
+            return `${parseInt(num.slice(0, 2), 10)}.${parseInt(num.slice(2, 4), 10)}`;
+        }
+
+        function renderAbout() {
+            document.getElementById('device_id').textContent = about.device_id;
+            document.getElementById('about_device_id').textContent = about.device_id;
+            document.getElementById('about_fw_version').textContent = 'v' + about.firmware_version;
+            document.getElementById('about_fw_name').textContent = about.firmware_name;
+            document.getElementById('about_serial').textContent = about.serial_number;
+            document.getElementById('about_mac').textContent = about.mac_address;
+            document.getElementById('about_hw').textContent = parseHardwareVersion(about.hardware_version);
+        }
+
+        function renderSettings() {
+            document.getElementById('companion_ip').value = settings.companion_ip;
+            document.getElementById('companion_port').value = settings.companion_port;
+
+            document.getElementById('wifi_indicator').checked = settings.wifi_indicator === "1";
+            document.getElementById('companion_indicator').checked = settings.companion_indicator === "1";
+            document.getElementById('setup_indicator').checked = settings.setup_indicator === "1";
+            document.getElementById('ultra_bright').checked = settings.ultra_bright === "1";
+            document.getElementById('dhcp_check').checked = settings.dhcp === "1";
+
+            document.getElementById('ip').value = settings.static_ip;
+            document.getElementById('gateway').value = settings.static_gateway;
+            document.getElementById('subnet').value = settings.static_subnet;
+            document.getElementById('dns').value = settings.static_dns;
+
+            handleDHCPClick(document.getElementById('dhcp_check'));
+            renderSavedNetworks();
+        }
+
+        function renderScannedNetworks() {
+            const section = document.getElementById('wifi_pallet_area');
+            section.innerHTML = '';
+            scannedNetworks.list.forEach((net, i) => {
+                const card = document.createElement('div');
+                card.className = 'wifi-card';
+
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.innerHTML = `<span class="ssid">${escapeHtml(net.ssid)}</span><span class="strength">${net.strength}</span>`;
+                row.onclick = () => {
+                    const expand = card.querySelector('.expand');
+                    expand.style.display = expand.style.display === 'block' ? 'none' : 'block';
+                };
+
+                const expand = document.createElement('div');
+                expand.className = 'expand';
+                const pwId = 'scan_pw_' + i;
+                expand.innerHTML = `
+                    <div class="password-wrap">
+                        <input type="password" id="${pwId}" placeholder="Password">
+                        <span class="toggle-password" onclick="togglePassword('${pwId}')">SHOW</span>
+                    </div>
+                    <button class="btn btn-secondary btn-block" onclick="addScannedNetwork('${escapeAttr(net.ssid)}', '${pwId}')">Add to Saved Networks</button>
+                `;
+
+                card.appendChild(row);
+                card.appendChild(expand);
+                section.appendChild(card);
+            });
+        }
+
+        function renderSavedNetworks() {
+            const parent = document.getElementById('saved_networks_body');
+            parent.innerHTML = '';
+            for (let i = 1; i <= 3; i++) {
+                const ssid = settings['ssid' + i];
+                const row = document.createElement('div');
+                row.className = 'saved-row';
+                if (ssid) {
+                    row.innerHTML = `<span class="ssid">${escapeHtml(ssid)}</span>`;
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-danger';
+                    btn.textContent = 'Delete';
+                    btn.onclick = () => confirmDeleteNetwork(btn, i);
+                    row.appendChild(btn);
+                } else {
+                    row.innerHTML = `<span class="empty-slot">Empty slot</span>`;
+                }
+                parent.appendChild(row);
+            }
+        }
+
+        function confirmDeleteNetwork(btn, slot) {
+            if (btn.dataset.confirming === '1') {
+                settings['ssid' + slot] = '';
+                settings['pass' + slot] = '';
+                renderSavedNetworks();
+                return;
+            }
+            btn.dataset.confirming = '1';
+            btn.textContent = 'Confirm?';
+            btn.classList.add('confirming');
+            setTimeout(() => {
+                if (btn.isConnected) {
+                    btn.dataset.confirming = '0';
+                    btn.textContent = 'Delete';
+                    btn.classList.remove('confirming');
+                }
+            }, 3000);
+        }
+
+        function firstEmptySlot() {
+            for (let i = 1; i <= 3; i++) if (!settings['ssid' + i]) return i;
+            return 0;
+        }
+
+        function addManualNetwork() {
+            const ssid = document.getElementById('manual_wifi_ssid').value.trim();
+            const pass = document.getElementById('manual_wifi_password').value;
+            if (!ssid) { showToast('Enter an SSID first.', true); return; }
+            addNetworkToSaved(ssid, pass);
+            document.getElementById('manual_wifi_ssid').value = '';
+            document.getElementById('manual_wifi_password').value = '';
+        }
+
+        function addScannedNetwork(ssid, pwId) {
+            const pass = document.getElementById(pwId).value;
+            addNetworkToSaved(ssid, pass);
+        }
+
+        function addNetworkToSaved(ssid, pass) {
+            for (let i = 1; i <= 3; i++) {
+                if (settings['ssid' + i] === ssid) {
+                    settings['pass' + i] = pass;
+                    renderSavedNetworks();
+                    showToast('Updated password for ' + ssid + '.');
+                    return;
+                }
+            }
+            const slot = firstEmptySlot();
+            if (!slot) { showToast('All 3 saved network slots are full — delete one first.', true); return; }
+            settings['ssid' + slot] = ssid;
+            settings['pass' + slot] = pass;
+            renderSavedNetworks();
+            showToast('Added ' + ssid + ' to saved networks.');
+        }
+
+        function exportConfig() {
+            const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'tallywatch-config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Config exported.');
+        }
+
+        function displayConfigImportName() {
+            const input = document.getElementById('configImportFile');
+            document.getElementById('config-import-name').textContent = input.files[0] ? input.files[0].name : 'No file chosen';
+        }
+
+        function uploadConfig() {
+            const file = document.getElementById('configImportFile').files[0];
+            if (!file) { showToast('Choose a file first.', true); return; }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    settings = JSON.parse(e.target.result);
+                    renderSettings();
+                    markUnsaved();
+                    closePopup();
+                    showToast('Config imported — review and Save Settings to apply.');
+                } catch (err) {
+                    showToast('That file is not valid JSON.', true);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function showPopup(name) {
+            oldSettings = JSON.parse(JSON.stringify(settings));
+            document.querySelectorAll('.popup_choice').forEach(el => el.style.display = 'none');
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('popup').style.display = 'block';
+            document.getElementById(name + '_popup').style.display = 'block';
+            if (name === 'wifi') getWifis();
+        }
+
+        function closePopup() {
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('popup').style.display = 'none';
+            document.querySelectorAll('.popup_choice').forEach(el => el.style.display = 'none');
+        }
+
+        function cancelChanges() {
+            settings = JSON.parse(JSON.stringify(oldSettings));
+            renderSettings();
+            closePopup();
+        }
+
+        function handleOverlayClick(e) {
+            if (e.target.id === 'overlay') cancelChanges();
+        }
+
+        function markUnsaved() {
+            document.getElementById('unsaved-dot').style.visibility = 'visible';
+        }
+
+        function saveWifi() {
+            if (document.getElementById('dhcp_check').checked) {
+                settings.dhcp = "1";
+            } else {
+                settings.dhcp = "0";
+            }
+            settings.static_ip = document.getElementById('ip').value;
+            settings.static_gateway = document.getElementById('gateway').value;
+            settings.static_subnet = document.getElementById('subnet').value;
+            settings.static_dns = document.getElementById('dns').value;
+            markUnsaved();
+            closePopup();
+        }
+
+        function saveCompanion() {
+            settings.companion_ip = document.getElementById('companion_ip').value;
+            settings.companion_port = document.getElementById('companion_port').value;
+            markUnsaved();
+            closePopup();
+        }
+
+        function saveDevice() {
+            settings.wifi_indicator = document.getElementById('wifi_indicator').checked ? "1" : "0";
+            settings.companion_indicator = document.getElementById('companion_indicator').checked ? "1" : "0";
+            settings.setup_indicator = document.getElementById('setup_indicator').checked ? "1" : "0";
+            settings.ultra_bright = document.getElementById('ultra_bright').checked ? "1" : "0";
+            markUnsaved();
+            closePopup();
+        }
+
+        function publishChanges() {
+            document.getElementById('unsaved-dot').style.visibility = 'hidden';
+            if (DEV_MODE) { showToast('Saved (dev preview — no device to reboot).'); return; }
+            fetch('/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+                .then(r => r.text())
+                .then(() => showToast('Saved — TallyWatch is restarting.'))
+                .catch(() => { showToast('Save failed — try again.', true); markUnsaved(); });
+        }
+
+        function exitSetup() {
+            if (!DEV_MODE) fetch('/reboot');
+        }
+
+        function toggleSection(header, bodyId) {
+            const body = document.getElementById(bodyId);
+            const open = body.style.display === 'block';
+            body.style.display = open ? 'none' : 'block';
+            header.classList.toggle('open', !open);
+        }
+
+        function togglePassword(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.type = el.type === 'password' ? 'text' : 'password';
+        }
+
+        function handleDHCPClick(checkbox) {
+            document.getElementById('ip_fields').classList.toggle('disabled', checkbox.checked);
+        }
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show' + (isError ? ' error' : '');
+            clearTimeout(showToast._t);
+            showToast._t = setTimeout(() => t.classList.remove('show'), 3200);
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function escapeAttr(s) {
+            return String(s).replace(/'/g, "\\'");
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (document.getElementById('popup').style.display === 'block') cancelChanges();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            const tag = e.target.tagName;
+            if (tag !== 'INPUT') return;
+            const openPopup = document.querySelector('.popup_choice[style*="display: block"]');
+            if (!openPopup) return;
+            const saveBtn = openPopup.querySelector('.popup-top .btn-primary');
+            if (saveBtn) saveBtn.click();
+        });
+
+        init();
+    </script>
+
+</body>
+
+</html>
