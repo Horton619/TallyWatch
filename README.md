@@ -111,10 +111,24 @@ keeps the page/row/column assignment.
 Each of the blue/red/green indicators can be individually disabled from **Device**
 settings; when off, the LED just stays dark for that state instead of breathing.
 
+## Updating firmware over WiFi
+
+Beacons run a small web server and advertise themselves over mDNS during normal
+operation, so you can update them without USB:
+
+- **Per beacon:** open the beacon's **Firmware** page and upload a `.bin` — it flashes
+  itself and reboots.
+- **Fleet:** the [TallyWatch Manager](manager/) desktop app discovers all beacons,
+  shows their live status, and pushes firmware to them. It pulls releases from GitHub
+  when your laptop is online and caches them, so it works on isolated show networks.
+
+Firmware releases are built by CI (`.github/workflows/release-firmware.yml`) — push a
+`vX.Y.Z` tag and the `.bin` is attached to a GitHub Release.
+
 ## Known limitations
 
-- No OTA firmware update (re-flash over USB).
 - Single LED by default — bump `LED_COUNT` in `TallyWatch.ino` and wire a small ring
   if you want a closer "spinning connect" look.
-- Compiled from source but not yet verified on real hardware in this pass — see
+- Compiled clean for the ESP32-C3, but on-hardware behavior (LED, WiFi join, live
+  Companion sync, mDNS/OTA against real devices) is not yet validated — see
   `CHANGE_LOG.md`.

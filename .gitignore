@@ -1,5 +1,9 @@
 # Build artifacts from tools/flash.sh (arduino-cli --output-dir)
 .build/
 
+# Electron manager deps / builds
+manager/node_modules/
+manager/dist/
+
 # macOS
 .DS_Store

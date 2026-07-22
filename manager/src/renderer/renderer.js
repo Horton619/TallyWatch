@@ -1,0 +1,254 @@
+// TallyWatch Manager — renderer
+// Talks only to the preload-exposed `window.tallywatch` API. When that's absent
+// (opened directly in a browser for design preview), a mock stands in.
+
+const API = window.tallywatch || makeMock();
+
+const state = {
+  beacons: new Map(),  // ip -> { ip, id, fw, ...status }
+  latest: null,        // { version, asset } from GitHub
+  renameIp: null,
+};
+
+// ---------- lifecycle ----------
+async function boot() {
+  wireUi();
+  showSubnet();
+  API.onBeaconsUpdated(onDiscovery);
+  await API.discoverStart();
+  const list = await API.discoverList();
+  onDiscovery(list);
+  const cached = await API.githubCached();
+  if (cached) { state.latest = cached; renderFwPill(); }
+  setInterval(pollAll, 3000);
+  pollAll();
+}
+
+function onDiscovery(list) {
+  for (const b of list) {
+    const existing = state.beacons.get(b.ip) || {};
+    state.beacons.set(b.ip, { ...existing, ...b });
+  }
+  render();
+}
+
+async function pollAll() {
+  const ips = [...state.beacons.keys()];
+  await Promise.all(ips.map(async (ip) => {
+    try {
+      const s = await API.status(ip);
+      state.beacons.set(ip, { ...state.beacons.get(ip), ...s, online: true });
+    } catch {
+      const b = state.beacons.get(ip);
+      if (b) b.online = false;
+    }
+  }));
+  render();
+}
+
+// ---------- rendering ----------
+function cmpVersion(a, b) {
+  const pa = String(a || '0').split('.').map(Number);
+  const pb = String(b || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); }
+  return 0;
+}
+
+function fmtUptime(s) {
+  if (s == null) return '—';
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function signalLabel(rssi) {
+  if (rssi == null) return '—';
+  if (rssi > -60) return 'strong';
+  if (rssi > -75) return 'ok';
+  return 'weak';
+}
+
+function render() {
+  const grid = document.getElementById('grid');
+  const beacons = [...state.beacons.values()].sort((a, b) =>
+    (a.label || a.id || a.ip).localeCompare(b.label || b.id || b.ip));
+
+  document.getElementById('empty').style.display = beacons.length ? 'none' : 'block';
+
+  grid.innerHTML = '';
+  for (const b of beacons) {
+    const version = b.firmware_version || b.fw || '';
+    const outOfDate = state.latest && version && cmpVersion(version, state.latest.version) < 0;
+    const color = b.color && b.color !== '#000000' ? b.color : '#1a1e2b';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="swatch" style="background:${escAttr(color)}"></div>
+      <div class="b-main">
+        <p class="b-label">${escHtml(b.label || 'Unnamed beacon')}
+          <span class="edit" data-rename="${escAttr(b.ip)}">rename</span></p>
+        <p class="b-meta"><span>${escHtml(b.ip)}</span><span>${escHtml(b.id || b.device_id || '')}</span>
+          <span>up ${fmtUptime(b.uptime_s)}</span></p>
+        <div class="badges">
+          ${b.online === false
+            ? `<span class="badge err">Offline</span>`
+            : b.companion_connected
+              ? `<span class="badge ok">Live · Companion</span>`
+              : `<span class="badge warn">Waiting on Companion</span>`}
+          <span class="badge info">WiFi ${signalLabel(b.wifi_rssi)}</span>
+          ${version ? (outOfDate
+              ? `<span class="badge warn">v${escHtml(version)} → v${escHtml(state.latest.version)}</span>`
+              : `<span class="badge ok">v${escHtml(version)}</span>`) : ''}
+        </div>
+      </div>
+      <div class="b-actions">
+        <button class="btn btn-secondary btn-sm" data-identify="${escAttr(b.ip)}">Identify</button>
+        <button class="btn ${outOfDate ? 'btn-primary' : 'btn-secondary'} btn-sm" data-update="${escAttr(b.ip)}"
+          ${state.latest ? '' : 'disabled'}>Update</button>
+        <button class="btn btn-secondary btn-sm" data-reboot="${escAttr(b.ip)}">Reboot</button>
+      </div>`;
+    grid.appendChild(card);
+  }
+
+  grid.querySelectorAll('[data-identify]').forEach((el) =>
+    el.onclick = () => act(el.dataset.identify, 'identify', 'Identifying — watch for the flashing light.'));
+  grid.querySelectorAll('[data-reboot]').forEach((el) =>
+    el.onclick = () => act(el.dataset.reboot, 'reboot', 'Reboot sent.'));
+  grid.querySelectorAll('[data-update]').forEach((el) =>
+    el.onclick = () => pushUpdate(el.dataset.update));
+  grid.querySelectorAll('[data-rename]').forEach((el) =>
+    el.onclick = () => openRename(el.dataset.rename));
+}
+
+function renderFwPill() {
+  const pill = document.getElementById('fw-pill');
+  pill.innerHTML = state.latest ? `Firmware: <b>v${escHtml(state.latest.version)}</b> cached` : 'Firmware: —';
+}
+
+// ---------- actions ----------
+async function act(ip, fn, okMsg) {
+  try { await API[fn](ip); toast(okMsg); } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+async function pushUpdate(ip) {
+  if (!state.latest) { toast('Check for updates first (while online).', true); return; }
+  toast('Pushing firmware…');
+  try {
+    const r = await API.push(ip);
+    toast(r.ok ? 'Update sent — beacon rebooting.' : 'Update failed: ' + (r.text || ''), !r.ok);
+  } catch (e) { toast('Push failed: ' + e.message, true); }
+}
+
+async function checkUpdates() {
+  const btn = document.getElementById('check-btn');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    state.latest = await API.githubCheck();
+    renderFwPill(); render();
+    toast(`Latest firmware v${state.latest.version} cached and ready to push.`);
+  } catch (e) {
+    toast('Update check failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Check for Updates';
+  }
+}
+
+async function showSubnet() {
+  try {
+    const ips = await API.hostSubnet();
+    if (ips && ips.length) {
+      document.getElementById('subnet-hint').innerHTML =
+        `This laptop is on <b>${escHtml(ips.join(', '))}</b> — discovery only sees beacons on the same network. Join the tally WiFi to manage them.`;
+    }
+  } catch {}
+}
+
+// ---------- modals ----------
+function wireUi() {
+  document.getElementById('rescan-btn').onclick = async () => { await API.discoverStop(); await API.discoverStart(); toast('Rescanning…'); };
+  document.getElementById('check-btn').onclick = checkUpdates;
+  document.getElementById('settings-btn').onclick = openSettings;
+  document.getElementById('s-save').onclick = saveSettings;
+  document.getElementById('rename-save').onclick = saveRename;
+}
+
+async function openSettings() {
+  const s = await API.getSettings();
+  document.getElementById('s-owner').value = s.githubOwner || '';
+  document.getElementById('s-repo').value = s.githubRepo || '';
+  document.getElementById('s-token').value = s.githubToken || '';
+  showModal('settings-modal');
+}
+async function saveSettings() {
+  await API.setSettings({
+    githubOwner: document.getElementById('s-owner').value.trim(),
+    githubRepo: document.getElementById('s-repo').value.trim(),
+    githubToken: document.getElementById('s-token').value.trim(),
+  });
+  closeModals(); toast('Saved.');
+}
+
+function openRename(ip) {
+  state.renameIp = ip;
+  const b = state.beacons.get(ip);
+  document.getElementById('rename-input').value = b?.label || '';
+  showModal('rename-modal');
+}
+async function saveRename() {
+  const name = document.getElementById('rename-input').value.trim();
+  try {
+    await API.setLabel(state.renameIp, name);
+    const b = state.beacons.get(state.renameIp); if (b) b.label = name;
+    render(); closeModals(); toast('Renamed.');
+  } catch (e) { toast('Rename failed: ' + e.message, true); }
+}
+
+function showModal(id) {
+  document.getElementById('overlay').style.display = 'block';
+  document.getElementById(id).style.display = 'block';
+}
+function closeModals(e) {
+  if (e && e.target && e.target.id !== 'overlay') return;
+  document.getElementById('overlay').style.display = 'none';
+  document.querySelectorAll('.modal').forEach((m) => m.style.display = 'none');
+}
+
+// ---------- utils ----------
+let toastT;
+function toast(msg, err) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 3000);
+}
+function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function escAttr(s) { return escHtml(s); }
+
+// ---------- browser-preview mock ----------
+function makeMock() {
+  const beacons = [
+    { ip: '192.168.50.11', id: 'TallyWatch:AABBCC112233', fw: '1.0.0', label: 'Camera 1', companion_connected: true, wifi_rssi: -52, color: '#ef4444', uptime_s: 8400, firmware_version: '1.0.0' },
+    { ip: '192.168.50.12', id: 'TallyWatch:AABBCC445566', fw: '1.0.0', label: 'FOH Laptop', companion_connected: false, wifi_rssi: -68, color: '#000000', uptime_s: 320, firmware_version: '1.0.0' },
+    { ip: '192.168.50.13', id: 'TallyWatch:AABBCC778899', fw: '0.9.0', label: 'Stage Right', companion_connected: true, wifi_rssi: -80, color: '#22c55e', uptime_s: 15100, firmware_version: '0.9.0' },
+  ];
+  let cb = () => {};
+  return {
+    onBeaconsUpdated: (fn) => { cb = fn; },
+    discoverStart: async () => { setTimeout(() => cb(beacons), 150); return true; },
+    discoverStop: async () => true,
+    discoverList: async () => beacons,
+    status: async (ip) => { const b = beacons.find((x) => x.ip === ip); if (!b) throw new Error('gone'); return { ...b, device_id: b.id }; },
+    identify: async () => true,
+    reboot: async () => true,
+    setLabel: async () => true,
+    push: async () => ({ ok: true, text: 'OK - rebooting' }),
+    githubCheck: async () => ({ version: '1.0.0', asset: 'TallyWatch-v1.0.0.bin' }),
+    githubCached: async () => null,
+    getSettings: async () => ({ githubOwner: 'Horton619', githubRepo: 'TallyWatch', githubToken: '' }),
+    setSettings: async () => true,
+    hostSubnet: async () => ['192.168.50.5'],
+  };
+}
+
+boot();

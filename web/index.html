@@ -759,6 +759,23 @@
             </div>
         </div>
 
+        <div class="menu-row" onclick="showPopup('firmware')">
+            <div class="label">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                </span>Firmware
+            </div>
+            <div class="right">
+                <span class="status-pill" id="fw_status"></span>
+                <span class="chevron">›</span>
+            </div>
+        </div>
+
         <div class="menu-row" onclick="showPopup('importexport')">
             <div class="label">
                 <span class="icon">
@@ -891,6 +908,9 @@
                 <div class="section-header" onclick="toggleSection(this, 'device_general_body')">Brightness <span
                         class="caret">⌄</span></div>
                 <div class="section-body" id="device_general_body">
+                    <label for="device_label">Device Name</label>
+                    <input type="text" id="device_label" placeholder="e.g. Camera 1">
+                    <p class="field-help">A friendly name shown in the TallyWatch Manager. Optional.</p>
                     <label class="checkbox-row" for="ultra_bright">
                         <input type="checkbox" id="ultra_bright">
                         Ultra Bright Mode
@@ -918,6 +938,42 @@
                         <input type="checkbox" id="setup_indicator">
                         Setup mode active (green)
                     </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Firmware -->
+        <div class="popup_choice" id="firmware_popup">
+            <div class="popup-top">
+                <button class="btn btn-secondary" onclick="closePopup()">Close</button>
+                <span></span>
+            </div>
+            <h2>Firmware</h2>
+            <p class="esc-hint">Update this beacon over WiFi — no cable, no tools. Press Esc to close.</p>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'fw_update_body')">Update Firmware <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="fw_update_body">
+                    <p class="section-intro">Installed: <strong id="fw_current">—</strong>. Choose a TallyWatch
+                        <code>.bin</code>; the beacon flashes itself and reboots. Don't remove power during the update.
+                    </p>
+                    <label class="file-btn">
+                        <input type="file" id="fwFile" accept=".bin" onchange="displayFwName()">
+                        Choose .bin
+                    </label>
+                    <span class="file-name" id="fw-name">No file chosen</span>
+                    <div class="divider"></div>
+                    <div id="fw-progress-wrap" style="display:none; margin-bottom:14px">
+                        <div
+                            style="height:8px; background:var(--bg-input); border-radius:99px; overflow:hidden; border:1px solid var(--border)">
+                            <div id="fw-progress-bar"
+                                style="height:100%; width:0; background:var(--accent); transition:width .12s ease"></div>
+                        </div>
+                        <p class="field-help" id="fw-progress-text" style="margin-top:7px"></p>
+                    </div>
+                    <button class="btn btn-primary btn-block" id="fw-upload-btn" onclick="uploadFirmware()">Upload &amp;
+                        Flash</button>
                 </div>
             </div>
         </div>
@@ -1002,6 +1058,7 @@
             wifi_indicator: "1", companion_indicator: "1", setup_indicator: "1",
             ultra_bright: "0",
             companion_ip: "", companion_port: "16622",
+            label: "",
         };
 
         var scannedNetworks = { list: [] };
@@ -1016,6 +1073,7 @@
             settings.pass1 = "hunter2";
             settings.companion_ip = "192.168.1.50";
             settings.companion_port = "16622";
+            settings.label = "Camera 1";
             scannedNetworks.list = [
                 { ssid: "Stage Left Router", strength: "high" },
                 { ssid: "FOH-5G", strength: "medium" },
@@ -1073,6 +1131,11 @@
             document.getElementById('about_serial').textContent = about.serial_number;
             document.getElementById('about_mac').textContent = about.mac_address;
             document.getElementById('about_hw').textContent = parseHardwareVersion(about.hardware_version);
+
+            document.getElementById('fw_current').textContent = 'v' + about.firmware_version + ' · ' + about.firmware_name;
+            const fw = document.getElementById('fw_status');
+            fw.className = 'status-pill ok';
+            fw.textContent = 'v' + about.firmware_version;
         }
 
         function renderSettings() {
@@ -1083,6 +1146,7 @@
             document.getElementById('companion_indicator').checked = settings.companion_indicator === "1";
             document.getElementById('setup_indicator').checked = settings.setup_indicator === "1";
             document.getElementById('ultra_bright').checked = settings.ultra_bright === "1";
+            document.getElementById('device_label').value = settings.label || "";
             document.getElementById('dhcp_check').checked = settings.dhcp === "1";
 
             document.getElementById('ip').value = settings.static_ip;
@@ -1318,8 +1382,66 @@
             settings.companion_indicator = document.getElementById('companion_indicator').checked ? "1" : "0";
             settings.setup_indicator = document.getElementById('setup_indicator').checked ? "1" : "0";
             settings.ultra_bright = document.getElementById('ultra_bright').checked ? "1" : "0";
+            settings.label = document.getElementById('device_label').value;
             markUnsaved();
             closePopup();
+        }
+
+        function displayFwName() {
+            const input = document.getElementById('fwFile');
+            document.getElementById('fw-name').textContent = input.files[0] ? input.files[0].name : 'No file chosen';
+        }
+
+        // Real XHR upload with a live progress bar (never a fake animation).
+        function uploadFirmware() {
+            const file = document.getElementById('fwFile').files[0];
+            if (!file) { showToast('Choose a .bin file first.', true); return; }
+
+            const btn = document.getElementById('fw-upload-btn');
+            const wrap = document.getElementById('fw-progress-wrap');
+            const bar = document.getElementById('fw-progress-bar');
+            const text = document.getElementById('fw-progress-text');
+            btn.disabled = true;
+            wrap.style.display = 'block';
+
+            if (DEV_MODE) {
+                let pct = 0;
+                const t = setInterval(() => {
+                    pct = Math.min(100, pct + 7);
+                    bar.style.width = pct + '%';
+                    text.textContent = pct < 100 ? 'Uploading… ' + pct + '%' : 'Flashing — device rebooting…';
+                    if (pct >= 100) { clearInterval(t); btn.disabled = false; showToast('Uploaded (dev preview — no device).'); }
+                }, 120);
+                return;
+            }
+
+            const form = new FormData();
+            form.append('firmware', file, file.name);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/update/firmware');
+            xhr.upload.onprogress = (e) => {
+                if (!e.lengthComputable) return;
+                const pct = Math.round((e.loaded / e.total) * 100);
+                bar.style.width = pct + '%';
+                text.textContent = 'Uploading… ' + pct + '%';
+            };
+            xhr.onload = () => {
+                if (xhr.status === 200 && xhr.responseText.startsWith('OK')) {
+                    bar.style.width = '100%';
+                    text.textContent = 'Flashing — the beacon is rebooting into the new firmware.';
+                    showToast('Update sent — beacon is rebooting.');
+                } else {
+                    text.textContent = 'Update failed: ' + (xhr.responseText || xhr.status);
+                    showToast('Update failed.', true);
+                    btn.disabled = false;
+                }
+            };
+            xhr.onerror = () => {
+                // Connection usually drops as the device reboots — that's expected on success.
+                text.textContent = 'Connection closed (normal as the beacon reboots).';
+                btn.disabled = false;
+            };
+            xhr.send(form);
         }
 
         function publishChanges() {

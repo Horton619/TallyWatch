@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>TallyWatch Manager</title>
+    <style>
+        :root {
+            --bg: #070910;
+            --bg-elevated: #10131c;
+            --bg-card: #161a26;
+            --bg-input: #0d0f18;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.18);
+            --text: #f5f6f8;
+            --text-dim: #9aa0ac;
+            --text-faint: #666c78;
+            --accent: #22d3ee;
+            --accent-hover: #67e8f9;
+            --accent-text: #05262e;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        header {
+            padding: 20px 26px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            background: linear-gradient(to bottom, var(--bg), rgba(7, 9, 16, 0.92));
+            backdrop-filter: blur(6px);
+            z-index: 5;
+        }
+
+        .eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 800;
+            margin: 3px 0 0;
+            letter-spacing: -0.01em;
+        }
+
+        .toolbar { display: flex; align-items: center; gap: 10px; }
+
+        .btn {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 9px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.5; cursor: default; }
+        .btn-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+        .btn-secondary { background: transparent; color: var(--text-dim); border-color: var(--border-strong); }
+        .btn-secondary:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); }
+        .btn-sm { padding: 6px 11px; font-size: 12px; }
+
+        .fw-pill {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dim);
+            padding: 6px 11px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .fw-pill b { color: var(--accent); }
+
+        main { padding: 18px 26px 40px; }
+
+        .subnet-hint {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 13px;
+            color: var(--text-dim);
+            background: rgba(34, 211, 238, 0.06);
+            border: 1px solid rgba(34, 211, 238, 0.18);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            margin-bottom: 18px;
+        }
+        .subnet-hint b { color: var(--text); }
+
+        .beacon-grid { display: flex; flex-direction: column; gap: 12px; }
+
+        .card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 15px 17px;
+            display: grid;
+            grid-template-columns: 42px 1fr auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .swatch {
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            border: 1px solid var(--border-strong);
+            box-shadow: inset 0 0 0 3px var(--bg-elevated);
+        }
+
+        .b-main { min-width: 0; }
+        .b-label {
+            font-size: 16px; font-weight: 700; margin: 0 0 2px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .b-label .edit { font-size: 12px; color: var(--text-faint); cursor: pointer; }
+        .b-label .edit:hover { color: var(--accent); }
+        .b-meta { font-size: 12px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+        .b-meta span { margin-right: 12px; }
+
+        .badges { display: flex; gap: 7px; margin-top: 7px; flex-wrap: wrap; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+        }
+        .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .badge.ok { color: var(--emerald); background: rgba(16, 185, 129, 0.13); }
+        .badge.warn { color: var(--amber); background: rgba(245, 158, 11, 0.13); }
+        .badge.err { color: var(--rose); background: rgba(244, 63, 94, 0.13); }
+        .badge.info { color: var(--accent); background: rgba(34, 211, 238, 0.13); }
+
+        .b-actions { display: flex; gap: 7px; align-items: center; }
+
+        .empty {
+            text-align: center; color: var(--text-faint);
+            padding: 70px 20px; font-size: 15px; line-height: 1.6;
+        }
+
+        /* modal */
+        .overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(3, 4, 8, 0.65); z-index: 50;
+        }
+        .modal {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 92%; max-width: 440px;
+            background: var(--bg-elevated); border: 1px solid var(--border-strong);
+            border-radius: 16px; padding: 22px; z-index: 51;
+        }
+        .modal h2 { margin: 0 0 14px; font-size: 19px; }
+        label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+        input[type=text], input[type=password] {
+            width: 100%; padding: 10px 12px; margin-bottom: 14px;
+            background: var(--bg-input); border: 1px solid var(--border-strong);
+            border-radius: var(--radius-sm); color: var(--text); font-size: 14px; font-family: inherit;
+        }
+        input:focus { outline: none; border-color: var(--accent); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+        .field-help { font-size: 12px; color: var(--text-faint); margin: -8px 0 14px; }
+
+        .toast {
+            position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 12px);
+            background: var(--bg-card); border: 1px solid var(--border-strong);
+            padding: 11px 17px; border-radius: var(--radius-sm); font-size: 13px;
+            opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 60;
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .toast.err { border-color: rgba(244, 63, 94, 0.5); }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <div class="eyebrow">Visual Entropy Productions</div>
+            <h1>TallyWatch Manager</h1>
+        </div>
+        <div class="toolbar">
+            <span class="fw-pill" id="fw-pill">Firmware: —</span>
+            <button class="btn btn-secondary" id="check-btn">Check for Updates</button>
+            <button class="btn btn-secondary" id="rescan-btn">Rescan</button>
+            <button class="btn btn-secondary btn-sm" id="settings-btn">⚙</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="subnet-hint" id="subnet-hint">
+            Discovery only sees beacons on the same network — <b>join the tally WiFi</b> to manage them.
+        </div>
+        <div class="beacon-grid" id="grid"></div>
+        <div class="empty" id="empty" style="display:none">
+            No beacons found yet.<br>Make sure your laptop is on the tally WiFi, then click <b>Rescan</b>.
+        </div>
+    </main>
+
+    <div class="overlay" id="overlay" onclick="closeModals(event)"></div>
+
+    <div class="modal" id="settings-modal">
+        <h2>GitHub Firmware Source</h2>
+        <label>Owner</label>
+        <input type="text" id="s-owner" placeholder="Horton619">
+        <label>Repository</label>
+        <input type="text" id="s-repo" placeholder="TallyWatch">
+        <label>Access Token <span style="font-weight:400">(only for a private repo)</span></label>
+        <input type="password" id="s-token" placeholder="ghp_…">
+        <p class="field-help">The manager pulls the latest firmware release from here when you're online, caches it, then
+            pushes to beacons over the isolated show network.</p>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+            <button class="btn btn-primary" id="s-save">Save</button>
+        </div>
+    </div>
+
+    <div class="modal" id="rename-modal">
+        <h2>Rename Beacon</h2>
+        <label>Device Name</label>
+        <input type="text" id="rename-input" placeholder="e.g. Camera 1">
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+            <button class="btn btn-primary" id="rename-save">Save</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>

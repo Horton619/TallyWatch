@@ -1,5 +1,21 @@
 # Change Log
 
+## Unreleased — WiFi update + fleet management
+
+- **Firmware OTA over WiFi** — beacons run their web server + advertise over mDNS
+  during normal operation (not just setup mode); added `/update/firmware` (self-flash
+  via `Update.h`), `/status`, `/setlabel`, `/identify` endpoints and a friendly
+  device label.
+- **Setup page** — new Firmware section with a `.bin` upload (real XHR progress bar)
+  and a Device Name field.
+- **TallyWatch Manager** (`manager/`) — Electron app: mDNS discovery, live dashboard,
+  identify (locate a beacon by flashing its LED), rename, and firmware push. Pulls
+  releases from GitHub when online and caches them (courier model for isolated show
+  networks).
+- **CI** — `.github/workflows/release-firmware.yml` builds the `.bin` on `v*` tags and
+  attaches it to a GitHub Release; stamps the firmware version from the tag.
+- Flash usage 82% (from 79%) — mDNS + OTA + endpoints; still within the OTA partition.
+
 ## V1.0.0 - "First Light"
 
 Initial TallyWatch build — modernization pass over the earlier `DIYTallyLight.ino`

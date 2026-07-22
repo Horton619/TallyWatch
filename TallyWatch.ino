@@ -75,6 +75,7 @@
 */
 
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <Adafruit_NeoPixel.h>
 #include "web_routes.h"
@@ -99,10 +100,16 @@ Preferences prefs;
 TallySettings settings;
 String deviceSerial; // stable id, generated once from MAC, e.g. "TallyWatch:AABBCCDDEEFF"
 
-// ---------------- Web server (setup mode) ----------------
+// ---------------- Web server (setup + normal operation) ----------------
 WebServer server(80);
 volatile bool restartPending = false;
 unsigned long restartAtMs = 0;
+bool servicesStarted = false;  // mDNS + HTTP started once WiFi is up
+
+// ---------------- Live status / management ----------------
+String lastColorHex = "#000000";    // last color Companion pushed (for /status + identify restore)
+unsigned long identifyUntil = 0;    // while > millis(), the LED runs the locate-me blink
+bool wasIdentifying = false;
 
 // ---------------- Networking / protocol state ----------------
 WiFiClient client;
@@ -153,6 +160,20 @@ void flashWhite(int times, int ms) {
   }
 }
 
+// Locate-me blink: a fast cyan flash so an operator can physically find which
+// unit responded to the manager's "Identify" button.
+void identifyBlinkStep() {
+  bool on = (millis() / 150) % 2;
+  if (on) showSolid(0, 210, 255);
+  else showSolid(0, 0, 0);
+}
+
+// Re-apply the last Companion color (used when an identify blink ends).
+void applyColorHex(const String& hex); // fwd decl
+void restoreLastColor() {
+  applyColorHex(lastColorHex);
+}
+
 // ================= Settings persistence =================
 void loadSettings() {
   settings.ssid1 = prefs.getString("ssid1", "");
@@ -172,6 +193,7 @@ void loadSettings() {
   settings.ultra_bright = prefs.getString("ultra", "0");
   settings.companion_ip = prefs.getString("comp_ip", "");
   settings.companion_port = prefs.getString("comp_port", "16622");
+  settings.label = prefs.getString("label", "");
 }
 
 void persistSettings() {
@@ -192,6 +214,7 @@ void persistSettings() {
   prefs.putString("ultra", settings.ultra_bright);
   prefs.putString("comp_ip", settings.companion_ip);
   prefs.putString("comp_port", settings.companion_port);
+  prefs.putString("label", settings.label);
 }
 
 // ================= Setup mode (AP + custom web UI) =================
@@ -318,6 +341,8 @@ String getArg(const String& line, const String& key) {
 }
 
 void applyColorHex(const String& hex) {
+  lastColorHex = hex;
+  if (identifyUntil > millis()) return; // don't disturb a locate-me blink in progress
   if (hex.length() >= 7 && hex[0] == '#') {
     long val = strtol(hex.substring(1).c_str(), NULL, 16);
     uint8_t r = (val >> 16) & 0xFF;
@@ -412,6 +437,20 @@ String macSerial() {
   return String(buf);
 }
 
+// Bring up mDNS + the HTTP server once WiFi is connected, so the beacon is
+// discoverable and manageable during normal operation (not just setup mode).
+void startNetServices() {
+  String host = "tallywatch-" + deviceSerial.substring(deviceSerial.indexOf(':') + 1);
+  host.toLowerCase();
+  if (MDNS.begin(host.c_str())) {
+    MDNS.addService("tallywatch", "tcp", 80);
+    MDNS.addServiceTxt("tallywatch", "tcp", "id", deviceSerial);
+    MDNS.addServiceTxt("tallywatch", "tcp", "fw", FW_VERSION);
+  }
+  setupWebServerRoutes();
+  server.begin();
+}
+
 void setup() {
   Serial.begin(115200);
   strip.begin();
@@ -440,8 +479,26 @@ void loop() {
   checkBootButton();
 
   if (WiFi.status() != WL_CONNECTED) {
+    servicesStarted = false; // rebuild mDNS/server after a reconnect
     connectWiFi(); // blocks until connected or reboots
     return;
+  }
+
+  if (!servicesStarted) {
+    startNetServices();
+    servicesStarted = true;
+  }
+
+  server.handleClient(); // management HTTP stays live during normal operation
+
+  if (restartPending && millis() > restartAtMs) ESP.restart(); // e.g. after an OTA
+
+  // Locate-me blink overrides the mirrored color while active.
+  if (identifyUntil > millis()) {
+    identifyBlinkStep();
+  } else if (wasIdentifying) {
+    wasIdentifying = false;
+    restoreLastColor();
   }
 
   if (!client.connected()) {

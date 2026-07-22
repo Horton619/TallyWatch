@@ -20,6 +20,7 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include <Update.h>
 #include "firmware/page_html_gz.h"
 
 struct TallySettings {
@@ -31,6 +32,7 @@ struct TallySettings {
     String ultra_bright = "0";
     String companion_ip;
     String companion_port = "16622";
+    String label; // friendly name shown in the manager (e.g. "Camera 1")
 };
 
 extern TallySettings settings;
@@ -43,6 +45,13 @@ extern const char* HARDWARE_VERSION;
 
 extern volatile bool restartPending;
 extern unsigned long restartAtMs;
+
+// Live status/management state (defined in TallyWatch.ino)
+extern WiFiClient client;
+extern bool deviceRegistered;
+extern String lastColorHex;
+extern unsigned long identifyUntil;
+extern bool wasIdentifying;
 
 void persistSettings(); // defined in TallyWatch.ino
 
@@ -70,6 +79,7 @@ inline void applySettingsFromJson(JsonDocument& doc) {
     settings.ultra_bright = doc["ultra_bright"] | settings.ultra_bright;
     settings.companion_ip = doc["companion_ip"] | settings.companion_ip;
     settings.companion_port = doc["companion_port"] | settings.companion_port;
+    settings.label = doc["label"] | settings.label;
 }
 
 inline void handleRoot() {
@@ -93,6 +103,7 @@ inline void handleGetConfig() {
     doc["ultra_bright"] = settings.ultra_bright;
     doc["companion_ip"] = settings.companion_ip;
     doc["companion_port"] = settings.companion_port;
+    doc["label"] = settings.label;
     String out;
     serializeJson(doc, out);
     server.send(200, "application/json", out);
@@ -152,11 +163,72 @@ inline void handleGetReboot() {
     restartAtMs = millis() + 300;
 }
 
+// Live status the manager polls to build its dashboard.
+inline void handleGetStatus() {
+    JsonDocument doc;
+    doc["device_id"] = deviceSerial;
+    doc["label"] = settings.label;
+    doc["firmware_version"] = FW_VERSION;
+    doc["ip"] = WiFi.localIP().toString();
+    doc["wifi_rssi"] = WiFi.RSSI();
+    doc["companion_connected"] = client.connected() && deviceRegistered;
+    doc["color"] = lastColorHex;
+    doc["uptime_s"] = (uint32_t)(millis() / 1000);
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+// Rename a beacon without a reboot (manager convenience).
+inline void handleSetLabel() {
+    if (server.hasArg("value")) {
+        settings.label = server.arg("value");
+        persistSettings();
+    }
+    server.send(200, "text/plain", "OK");
+}
+
+// Flash the LED so an operator can physically find this unit.
+inline void handleIdentify() {
+    identifyUntil = millis() + 5000;
+    wasIdentifying = true;
+    server.send(200, "text/plain", "OK");
+}
+
+// OTA firmware upload. The upload handler streams the .bin into the OTA
+// partition; the completion handler replies and schedules a reboot.
+inline void handleOtaUpload() {
+    HTTPUpload& up = server.upload();
+    if (up.status == UPLOAD_FILE_START) {
+        Update.begin(UPDATE_SIZE_UNKNOWN);
+    } else if (up.status == UPLOAD_FILE_WRITE) {
+        Update.write(up.buf, up.currentSize);
+    } else if (up.status == UPLOAD_FILE_END) {
+        Update.end(true);
+    }
+}
+
+inline void handleOtaDone() {
+    bool ok = !Update.hasError();
+    server.send(200, "text/plain", ok ? "OK - rebooting" : "FAILED");
+    if (ok) {
+        restartPending = true;
+        restartAtMs = millis() + 800; // let the response flush, then reboot into new fw
+    }
+}
+
 inline void setupWebServerRoutes() {
+    static bool registered = false;
+    if (registered) return; // routes persist across setup/normal mode transitions
+    registered = true;
     server.on("/", HTTP_GET, handleRoot);
     server.on("/config", HTTP_GET, handleGetConfig);
     server.on("/wifi", HTTP_GET, handleGetWifi);
     server.on("/about", HTTP_GET, handleGetAbout);
+    server.on("/status", HTTP_GET, handleGetStatus);
     server.on("/save", HTTP_POST, handlePostSave);
+    server.on("/setlabel", HTTP_POST, handleSetLabel);
+    server.on("/identify", HTTP_GET, handleIdentify);
     server.on("/reboot", HTTP_GET, handleGetReboot);
+    server.on("/update/firmware", HTTP_POST, handleOtaDone, handleOtaUpload);
 }
