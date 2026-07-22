@@ -20,5 +20,6 @@ contextBridge.exposeInMainWorld('tallywatch', {
 
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),
-  hostSubnet: () => ipcRenderer.invoke('sys:hostSubnet'),
+  adapters: () => ipcRenderer.invoke('sys:adapters'),
+  ipInUse: (ip) => ipcRenderer.invoke('net:ipInUse', ip),
 });

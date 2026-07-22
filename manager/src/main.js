@@ -11,6 +11,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { execFile } = require('child_process');
 const { Bonjour } = require('bonjour-service');
 
 const SETTINGS_PATH = () => path.join(app.getPath('userData'), 'settings.json');
@@ -193,20 +194,36 @@ function registerIpc() {
 
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('settings:set', (_e, s) => { saveSettings(s); return true; });
-  ipcMain.handle('sys:hostSubnet', () => hostSubnetHint());
+  ipcMain.handle('sys:adapters', () => hostAdapters());
+  ipcMain.handle('net:ipInUse', (_e, ip) => ipInUse(ip));
 }
 
-// Helper for the UI: which subnet is this laptop on? (reminds the operator to
-// join the tally WiFi, since discovery only works on the beacon subnet)
-function hostSubnetHint() {
+// The laptop's usable IPv4 adapters, with netmask — the manager derives beacon
+// subnet/gateway from the selected one so the user only ever types an IP.
+function hostAdapters() {
   const ifaces = os.networkInterfaces();
-  const ips = [];
-  for (const list of Object.values(ifaces)) {
+  const out = [];
+  for (const [name, list] of Object.entries(ifaces)) {
     for (const i of list || []) {
-      if (i.family === 'IPv4' && !i.internal) ips.push(i.address);
+      if (i.family === 'IPv4' && !i.internal) {
+        out.push({ name, address: i.address, netmask: i.netmask, cidr: i.cidr });
+      }
     }
   }
-  return ips;
+  return out;
+}
+
+// Best-effort "is this IP occupied" check via the system ping. A reply means
+// occupied; no reply is inconclusive (host may just not answer ICMP), so callers
+// treat a positive as a warning, not a hard block.
+function ipInUse(ip) {
+  return new Promise((resolve) => {
+    let args;
+    if (process.platform === 'win32') args = ['-n', '1', '-w', '700', ip];
+    else if (process.platform === 'darwin') args = ['-c', '1', '-W', '1000', ip];
+    else args = ['-c', '1', '-W', '1', ip];
+    execFile('ping', args, { timeout: 2500 }, (err) => resolve(!err));
+  });
 }
 
 // ---------- window ----------

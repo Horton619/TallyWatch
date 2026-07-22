@@ -8,6 +8,10 @@
   alternative. Added importable `docs/maplite-bridge.rsc` / `maplite-nat.rsc`.
 - **Manager manages beacon IPs** — per-beacon Network editor (DHCP/static) via a new
   firmware `/setip` endpoint; `/status` now reports the beacon's IP config.
+- **IP editor made foolproof** — a network segment with an **adapter dropdown** shows
+  the computer's IP/subnet; the user only types an **IP address** (subnet + gateway are
+  auto-derived from the selected adapter). Invalid IPv4 is a hard block; a
+  wrong-subnet or ping-answered (in-use) address raises a **Fix / Continue** warning.
 
 
 - **Firmware OTA over WiFi** — beacons run their web server + advertise over mDNS

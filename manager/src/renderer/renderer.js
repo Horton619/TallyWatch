@@ -13,7 +13,7 @@ const state = {
 // ---------- lifecycle ----------
 async function boot() {
   wireUi();
-  showSubnet();
+  await loadAdapters();
 
   // Baseline is known immediately from the firmware bundled into the app — no click,
   // works offline. Beacons compare against this the moment they're discovered.
@@ -230,15 +230,41 @@ async function checkUpdates() {
   }
 }
 
-async function showSubnet() {
+async function loadAdapters() {
   try {
-    const ips = await API.hostSubnet();
-    if (ips && ips.length) {
-      document.getElementById('subnet-hint').innerHTML =
-        `This computer is on <b>${escHtml(ips.join(', '))}</b> — discovery sees beacons on the same subnet. (Bridge mode: that's your production LAN, right here.)`;
-    }
-  } catch {}
+    state.adapters = (await API.adapters()) || [];
+  } catch { state.adapters = []; }
+  const sel = document.getElementById('adapter-select');
+  sel.innerHTML = '';
+  state.adapters.forEach((a, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = `${a.name} · ${a.cidr || a.address}`;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => { state.adapter = state.adapters[+sel.value] || null; renderNetbar(); };
+  state.adapter = state.adapters[0] || null;
+  renderNetbar();
 }
+
+function renderNetbar() {
+  const info = document.getElementById('adapter-info');
+  if (!state.adapter) { info.textContent = 'no network detected'; return; }
+  const a = state.adapter;
+  info.innerHTML = `IP <b style="color:var(--text)">${escHtml(a.address)}</b> · subnet ${escHtml(a.netmask)} — beacons share this subnet`;
+}
+
+// ---------- IPv4 helpers ----------
+function ipToInt(ip) { return ip.split('.').reduce((acc, o) => (acc * 256) + (+o), 0) >>> 0; }
+function intToIp(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); }
+function isValidIp(s) {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(s || '')) return false;
+  return s.split('.').every((o) => +o >= 0 && +o <= 255);
+}
+function sameSubnet(a, b, mask) { return (ipToInt(a) & ipToInt(mask)) === (ipToInt(b) & ipToInt(mask)); }
+// Derive a sensible gateway (network base + 1) — beacons only talk on-subnet, so
+// this only needs to be plausible for WiFi.config, never actually routed.
+function deriveGateway(ip, mask) { return intToIp(((ipToInt(ip) & ipToInt(mask)) + 1) >>> 0); }
 
 // ---------- modals ----------
 function wireUi() {
@@ -249,6 +275,7 @@ function wireUi() {
   document.getElementById('rename-save').onclick = saveRename;
   document.getElementById('ip-save').onclick = saveIp;
   document.getElementById('ip-dhcp').onchange = toggleIpFields;
+  document.getElementById('warn-fix').onclick = hideWarn; // back to the IP modal to edit
 }
 
 async function openSettings() {
@@ -287,37 +314,73 @@ function openIp(ip) {
   const b = state.beacons.get(ip) || {};
   document.getElementById('ip-modal-name').textContent = b.label || ip;
   document.getElementById('ip-dhcp').checked = b.dhcp !== '0';
-  document.getElementById('ip-addr').value = b.static_ip || '';
-  document.getElementById('ip-gw').value = b.static_gateway || '';
-  document.getElementById('ip-sub').value = b.static_subnet || '255.255.255.0';
-  document.getElementById('ip-dns').value = b.static_dns || '';
+  document.getElementById('ip-addr').value = b.static_ip || (b.dhcp === '0' ? b.ip : '') || '';
+  hideIpError();
   toggleIpFields();
   showModal('ip-modal');
 }
 
 function toggleIpFields() {
   const on = document.getElementById('ip-dhcp').checked;
-  document.getElementById('ip-static-fields').style.opacity = on ? '0.4' : '1';
-  document.getElementById('ip-static-fields').style.pointerEvents = on ? 'none' : 'auto';
+  const box = document.getElementById('ip-static-fields');
+  box.style.opacity = on ? '0.4' : '1';
+  box.style.pointerEvents = on ? 'none' : 'auto';
+  const d = document.getElementById('ip-derived');
+  d.textContent = state.adapter && !on
+    ? `Subnet ${state.adapter.netmask} and gateway ${deriveGateway(state.adapter.address, state.adapter.netmask)} come from ${state.adapter.name}.`
+    : '';
 }
 
+function showIpError(msg) { const e = document.getElementById('ip-error'); e.textContent = msg; e.style.display = 'block'; }
+function hideIpError() { document.getElementById('ip-error').style.display = 'none'; }
+
 async function saveIp() {
+  hideIpError();
   const dhcp = document.getElementById('ip-dhcp').checked ? '1' : '0';
-  const cfg = {
-    dhcp,
-    ip: document.getElementById('ip-addr').value.trim(),
-    gateway: document.getElementById('ip-gw').value.trim(),
-    subnet: document.getElementById('ip-sub').value.trim(),
-    dns: document.getElementById('ip-dns').value.trim(),
-  };
+  if (dhcp === '1') { return doSetIp({ dhcp: '1' }); }
+
+  const ip = document.getElementById('ip-addr').value.trim();
+
+  // Hard validation — must fix, no override.
+  if (!isValidIp(ip)) { showIpError('That is not a valid IPv4 address (e.g. 10.0.0.20).'); return; }
+  if (!state.adapter) { showIpError('No network adapter selected.'); return; }
+
+  const mask = state.adapter.netmask;
+  const cfg = { dhcp: '0', ip, subnet: mask, gateway: deriveGateway(ip, mask), dns: deriveGateway(ip, mask) };
+
+  // Soft warnings — the user can choose to proceed.
+  const warns = [];
+  if (!sameSubnet(ip, state.adapter.address, mask)) {
+    warns.push(`<b>${escHtml(ip)}</b> is not on this computer's subnet (${escHtml(state.adapter.address)} / ${escHtml(mask)}). After it reboots you may not be able to reach the beacon.`);
+  }
+  const selfCur = state.beacons.get(state.ipIp)?.ip;
+  const clash = [...state.beacons.values()].find((b) => b.ip === ip && b.ip !== selfCur);
+  if (clash) {
+    warns.push(`<b>${escHtml(ip)}</b> is already used by "${escHtml(clash.label || clash.ip)}".`);
+  } else if (ip !== selfCur) {
+    try { if (await API.ipInUse(ip)) warns.push(`<b>${escHtml(ip)}</b> answered a ping — another device may already be using it.`); } catch {}
+  }
+
+  if (warns.length) { showWarn(warns, () => doSetIp(cfg)); return; }
+  doSetIp(cfg);
+}
+
+async function doSetIp(cfg) {
   try {
     await API.setIp(state.ipIp, cfg);
-    // The beacon reboots at a new address; drop it so discovery re-adds it fresh.
-    state.beacons.delete(state.ipIp);
+    state.beacons.delete(state.ipIp); // reboots at a new address; discovery re-adds it
     render(); closeModals();
     toast('Network saved — beacon rebooting, it will reappear shortly.');
   } catch (e) { toast('Failed: ' + e.message, true); }
 }
+
+// ---------- warn popup (Fix / Continue) ----------
+function showWarn(messages, onContinue) {
+  document.getElementById('warn-body').innerHTML = messages.map((m) => `<p style="margin:0 0 8px">⚠ ${m}</p>`).join('');
+  document.getElementById('warn-continue').onclick = () => { hideWarn(); onContinue(); };
+  document.getElementById('warn-modal').style.display = 'block';
+}
+function hideWarn() { document.getElementById('warn-modal').style.display = 'none'; }
 
 function showModal(id) {
   document.getElementById('overlay').style.display = 'block';
@@ -364,7 +427,11 @@ function makeMock() {
     githubCheck: async () => ({ version: '1.0.0', newer: false, active: { version: '1.0.0', source: 'bundled', available: true } }),
     getSettings: async () => ({ githubOwner: 'Horton619', githubRepo: 'TallyWatch', githubToken: '' }),
     setSettings: async () => true,
-    hostSubnet: async () => ['192.168.50.5'],
+    adapters: async () => ([
+      { name: 'en0', address: '10.0.0.5', netmask: '255.255.255.0', cidr: '10.0.0.5/24' },
+      { name: 'en1 (Wi-Fi)', address: '192.168.1.10', netmask: '255.255.255.0', cidr: '192.168.1.10/24' },
+    ]),
+    ipInUse: async (ip) => ip === '10.0.0.99',
   };
 }
 

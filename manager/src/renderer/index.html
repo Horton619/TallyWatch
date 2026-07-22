@@ -98,10 +98,10 @@
 
         main { padding: 18px 26px 40px; }
 
-        .subnet-hint {
+        .netbar {
             display: flex;
             align-items: center;
-            gap: 9px;
+            gap: 12px;
             font-size: 13px;
             color: var(--text-dim);
             background: rgba(34, 211, 238, 0.06);
@@ -110,7 +110,14 @@
             padding: 10px 14px;
             margin-bottom: 18px;
         }
-        .subnet-hint b { color: var(--text); }
+        .netbar-label { font-weight: 600; color: var(--text-faint); }
+        .netbar-info { color: var(--text); font-variant-numeric: tabular-nums; }
+        .netbar select {
+            background: var(--bg-input); color: var(--text);
+            border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+            padding: 6px 10px; font-family: inherit; font-size: 13px; font-weight: 600;
+        }
+        .netbar select:focus { outline: none; border-color: var(--accent); }
 
         .fleet-bar {
             display: flex; align-items: center; justify-content: space-between; gap: 14px;
@@ -218,8 +225,10 @@
     </header>
 
     <main>
-        <div class="subnet-hint" id="subnet-hint">
-            Discovery only sees beacons on the same subnet as this computer.
+        <div class="netbar" id="netbar">
+            <span class="netbar-label">This computer</span>
+            <select id="adapter-select"></select>
+            <span class="netbar-info" id="adapter-info"></span>
         </div>
         <div class="fleet-bar" id="fleet-bar" style="display:none">
             <span id="fleet-summary"></span>
@@ -265,23 +274,28 @@
             <input type="checkbox" id="ip-dhcp" style="width:16px;height:16px;accent-color:var(--accent)"> Use DHCP
             (automatic)
         </label>
-        <p class="field-help">Off = static IP. On a no-DHCP show network, give each beacon a static address on the
-            production subnet.</p>
+        <p class="field-help">Off = static IP on the production LAN.</p>
         <div id="ip-static-fields">
             <label>IP Address</label>
-            <input type="text" id="ip-addr" placeholder="10.0.0.20">
-            <label>Gateway</label>
-            <input type="text" id="ip-gw" placeholder="10.0.0.1">
-            <label>Subnet Mask</label>
-            <input type="text" id="ip-sub" placeholder="255.255.255.0">
-            <label>DNS</label>
-            <input type="text" id="ip-dns" placeholder="10.0.0.1">
+            <input type="text" id="ip-addr" placeholder="10.0.0.20" inputmode="decimal">
+            <p class="field-help" id="ip-derived"></p>
+            <p id="ip-error" style="display:none;color:var(--rose);font-size:13px;font-weight:600;margin:-6px 0 12px">
+            </p>
         </div>
-        <p class="field-help">Saving reboots the beacon to apply — it'll reappear at its new address in a few
-            seconds.</p>
+        <p class="field-help">Subnet and gateway are set automatically from the selected adapter — you only enter the
+            address. Saving reboots the beacon; it reappears at its new address shortly.</p>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
             <button class="btn btn-primary" id="ip-save">Save &amp; Reboot</button>
+        </div>
+    </div>
+
+    <div class="modal" id="warn-modal" style="z-index:52">
+        <h2>Before you continue</h2>
+        <div id="warn-body" style="font-size:14px;color:var(--text-dim);line-height:1.6;margin-bottom:18px"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" id="warn-fix">Fix it</button>
+            <button class="btn btn-primary" id="warn-continue">Continue anyway</button>
         </div>
     </div>
 
