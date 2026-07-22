@@ -1,9 +1,14 @@
-# Build artifacts from tools/flash.sh (arduino-cli --output-dir)
+# Build artifacts (arduino-cli --output-dir, from flash.sh / bundle-firmware.sh / CI)
 .build/
+build/
 
 # Electron manager deps / builds
 manager/node_modules/
 manager/dist/
+
+# Bundled firmware binary (produced by manager/tools/bundle-firmware.sh; the
+# manifest.json is committed, the binary is not — keeps the repo lean)
+manager/firmware/*.bin
 
 # macOS
 .DS_Store

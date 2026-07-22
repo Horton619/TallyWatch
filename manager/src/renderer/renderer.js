@@ -14,14 +14,33 @@ const state = {
 async function boot() {
   wireUi();
   showSubnet();
+
+  // Baseline is known immediately from the firmware bundled into the app — no click,
+  // works offline. Beacons compare against this the moment they're discovered.
+  const active = await API.firmwareActive();
+  if (active) { state.latest = active; renderFwPill(); }
+
   API.onBeaconsUpdated(onDiscovery);
   await API.discoverStart();
-  const list = await API.discoverList();
-  onDiscovery(list);
-  const cached = await API.githubCached();
-  if (cached) { state.latest = cached; renderFwPill(); }
+  onDiscovery(await API.discoverList());
   setInterval(pollAll, 3000);
   pollAll();
+
+  // GitHub is the ceiling: quietly see if there's something newer than the bundle.
+  backgroundGithubCheck();
+}
+
+async function backgroundGithubCheck() {
+  try {
+    const r = await API.githubCheck();
+    if (r && r.newer) {
+      state.latest = r.active;
+      renderFwPill(); render();
+      toast(`Newer firmware v${r.version} found on GitHub and cached.`);
+    }
+  } catch {
+    // offline or no releases — the bundled firmware stays the baseline, silently
+  }
 }
 
 function onDiscovery(list) {
@@ -67,17 +86,24 @@ function signalLabel(rssi) {
   return 'weak';
 }
 
+function beaconVersion(b) { return b.firmware_version || b.fw || ''; }
+function isOutOfDate(b) {
+  const v = beaconVersion(b);
+  return !!(state.latest && v && cmpVersion(v, state.latest.version) < 0);
+}
+
 function render() {
   const grid = document.getElementById('grid');
   const beacons = [...state.beacons.values()].sort((a, b) =>
     (a.label || a.id || a.ip).localeCompare(b.label || b.id || b.ip));
 
   document.getElementById('empty').style.display = beacons.length ? 'none' : 'block';
+  renderFleetBar(beacons);
 
   grid.innerHTML = '';
   for (const b of beacons) {
-    const version = b.firmware_version || b.fw || '';
-    const outOfDate = state.latest && version && cmpVersion(version, state.latest.version) < 0;
+    const version = beaconVersion(b);
+    const outOfDate = isOutOfDate(b);
     const color = b.color && b.color !== '#000000' ? b.color : '#1a1e2b';
 
     const card = document.createElement('div');
@@ -103,8 +129,7 @@ function render() {
       </div>
       <div class="b-actions">
         <button class="btn btn-secondary btn-sm" data-identify="${escAttr(b.ip)}">Identify</button>
-        <button class="btn ${outOfDate ? 'btn-primary' : 'btn-secondary'} btn-sm" data-update="${escAttr(b.ip)}"
-          ${state.latest ? '' : 'disabled'}>Update</button>
+        ${updateButton(b, version, outOfDate)}
         <button class="btn btn-secondary btn-sm" data-reboot="${escAttr(b.ip)}">Reboot</button>
       </div>`;
     grid.appendChild(card);
@@ -120,9 +145,54 @@ function render() {
     el.onclick = () => openRename(el.dataset.rename));
 }
 
+function updateButton(b, version, outOfDate) {
+  if (!state.latest || !version) {
+    return `<button class="btn btn-secondary btn-sm" disabled>Update</button>`;
+  }
+  if (outOfDate) {
+    return `<button class="btn btn-primary btn-sm" data-update="${escAttr(b.ip)}">Update → v${escHtml(state.latest.version)}</button>`;
+  }
+  return `<button class="btn btn-secondary btn-sm" disabled>✓ Latest</button>`;
+}
+
+function renderFleetBar(beacons) {
+  const bar = document.getElementById('fleet-bar');
+  const btn = document.getElementById('update-all-btn');
+  const summary = document.getElementById('fleet-summary');
+  if (!beacons.length || !state.latest) { bar.style.display = 'none'; return; }
+
+  const outdated = beacons.filter(isOutOfDate);
+  bar.style.display = 'flex';
+  if (outdated.length === 0) {
+    summary.innerHTML = `<span class="ok-txt">✓ All ${beacons.length} beacon${beacons.length > 1 ? 's' : ''} on v${escHtml(state.latest.version)}</span>`;
+    btn.style.display = 'none';
+  } else {
+    summary.innerHTML = `<span class="warn-txt">${outdated.length} of ${beacons.length} need v${escHtml(state.latest.version)}</span>`;
+    btn.style.display = 'inline-block';
+    btn.textContent = `Update all (${outdated.length})`;
+    btn.onclick = updateAll;
+  }
+}
+
+async function updateAll() {
+  const outdated = [...state.beacons.values()].filter(isOutOfDate);
+  if (!outdated.length) return;
+  const btn = document.getElementById('update-all-btn');
+  btn.disabled = true;
+  let done = 0;
+  for (const b of outdated) {
+    btn.textContent = `Updating ${++done}/${outdated.length}…`;
+    try { await API.push(b.ip); } catch {}
+  }
+  btn.disabled = false;
+  toast(`Pushed firmware to ${outdated.length} beacon${outdated.length > 1 ? 's' : ''} — they're rebooting.`);
+}
+
 function renderFwPill() {
   const pill = document.getElementById('fw-pill');
-  pill.innerHTML = state.latest ? `Firmware: <b>v${escHtml(state.latest.version)}</b> cached` : 'Firmware: —';
+  if (!state.latest) { pill.textContent = 'Firmware: —'; return; }
+  const src = state.latest.source === 'github' ? 'GitHub' : 'bundled';
+  pill.innerHTML = `Firmware <b>v${escHtml(state.latest.version)}</b> · ${src}`;
 }
 
 // ---------- actions ----------
@@ -143,13 +213,15 @@ async function checkUpdates() {
   const btn = document.getElementById('check-btn');
   btn.disabled = true; btn.textContent = 'Checking…';
   try {
-    state.latest = await API.githubCheck();
-    renderFwPill(); render();
-    toast(`Latest firmware v${state.latest.version} cached and ready to push.`);
+    const r = await API.githubCheck();
+    if (r.active) { state.latest = r.active; renderFwPill(); render(); }
+    toast(r.newer
+      ? `Newer firmware v${r.version} found and cached.`
+      : `Already on the latest (v${r.version}).`);
   } catch (e) {
-    toast('Update check failed: ' + e.message, true);
+    toast('GitHub check failed: ' + e.message, true);
   } finally {
-    btn.disabled = false; btn.textContent = 'Check for Updates';
+    btn.disabled = false; btn.textContent = 'Check GitHub';
   }
 }
 
@@ -243,8 +315,8 @@ function makeMock() {
     reboot: async () => true,
     setLabel: async () => true,
     push: async () => ({ ok: true, text: 'OK - rebooting' }),
-    githubCheck: async () => ({ version: '1.0.0', asset: 'TallyWatch-v1.0.0.bin' }),
-    githubCached: async () => null,
+    firmwareActive: async () => ({ version: '1.0.0', codename: 'First Light', source: 'bundled', available: true }),
+    githubCheck: async () => ({ version: '1.0.0', newer: false, active: { version: '1.0.0', source: 'bundled', available: true } }),
     getSettings: async () => ({ githubOwner: 'Horton619', githubRepo: 'TallyWatch', githubToken: '' }),
     setSettings: async () => true,
     hostSubnet: async () => ['192.168.50.5'],

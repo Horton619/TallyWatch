@@ -9,9 +9,12 @@
 - **Setup page** — new Firmware section with a `.bin` upload (real XHR progress bar)
   and a Device Name field.
 - **TallyWatch Manager** (`manager/`) — Electron app: mDNS discovery, live dashboard,
-  identify (locate a beacon by flashing its LED), rename, and firmware push. Pulls
-  releases from GitHub when online and caches them (courier model for isolated show
-  networks).
+  identify (locate a beacon by flashing its LED), rename, and firmware push.
+- **Zero-click firmware awareness** — the manager bundles a known-good firmware (the
+  floor) via `manager/tools/bundle-firmware.sh`, so on launch it flags out-of-date
+  beacons with no clicks: a fleet summary + one-click "Update all", per-beacon "✓
+  Latest" / "Update → vX". GitHub is the ceiling: a background check prefers a newer
+  release when the laptop is online (courier model for isolated show networks).
 - **CI** — `.github/workflows/release-firmware.yml` builds the `.bin` on `v*` tags and
   attaches it to a GitHub Release; stamps the firmware version from the tag.
 - Flash usage 82% (from 79%) — mDNS + OTA + endpoints; still within the OTA partition.

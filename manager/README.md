@@ -12,16 +12,21 @@ show network. Visual Entropy Productions.
 - **Rename** — give beacons friendly names ("Camera 1"); stored on the device.
 - **Update over WiFi** — pushes firmware to beacons over the isolated show network.
 
-## The firmware update model (isolated networks)
+## The firmware update model (zero-click awareness)
 
-Show networks are air-gapped, so beacons can't reach GitHub. The manager is the
-courier:
+The manager **ships with a known-good firmware baked in** (`firmware/`), so the moment
+it launches — offline, no clicks — it knows the current version and flags which beacons
+are behind. A fleet bar summarizes ("1 of 3 need v1.0.0") with one-click **Update all**;
+each beacon shows **✓ Latest** or an accented **Update → vX** button.
 
-1. **When your laptop has internet** (at the shop), click **Check for Updates** — it
-   reads the latest GitHub Release, downloads the firmware `.bin`, and caches it
-   locally.
-2. **On the isolated show network**, click **Update** on a beacon — it pushes the
-   cached `.bin` to that beacon, which flashes itself and reboots.
+- **Bundled firmware is the floor.** Always available to push, fully offline.
+- **GitHub is the ceiling.** In the background (when the laptop has internet) the
+  manager checks GitHub Releases; if there's something *newer than the bundle*, it
+  downloads and prefers that — surfaced quietly, never blocking.
+
+Because show networks are air-gapped, the beacons never touch GitHub — the manager is
+the courier: it carries firmware (bundled, or pulled from GitHub while online) and
+pushes it to beacons over the isolated network.
 
 > **Discovery requires being on the beacon subnet.** Because the base station NATs
 > the beacons onto their own WiFi subnet, join the **tally WiFi** on your laptop to

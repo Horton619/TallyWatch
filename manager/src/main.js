@@ -93,7 +93,38 @@ function pushBeaconList() {
   }
 }
 
-// ---------- GitHub firmware check ----------
+// ---------- firmware sources ----------
+// The manager always has a floor: the firmware bundled into the app. GitHub is the
+// ceiling: a background check can pull something newer. activeFirmware() is whichever
+// is newest and has a usable .bin on disk.
+function cmpVer(a, b) {
+  const pa = String(a || '0').split('.').map(Number);
+  const pb = String(b || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); }
+  return 0;
+}
+
+function bundledFirmware() {
+  try {
+    const dir = path.join(__dirname, '..', 'firmware');
+    const mf = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+    const binPath = path.join(dir, mf.file);
+    return { version: mf.version, codename: mf.codename, path: binPath, available: fs.existsSync(binPath), source: 'bundled' };
+  } catch {
+    return null;
+  }
+}
+
+let cachedGithub = null; // { version, path } newer firmware pulled from GitHub
+
+function activeFirmware() {
+  const b = bundledFirmware();
+  if (cachedGithub && (!b || cmpVer(cachedGithub.version, b.version) > 0)) {
+    return { ...cachedGithub, available: fs.existsSync(cachedGithub.path), source: 'github' };
+  }
+  return b;
+}
+
 async function githubCheck() {
   const s = loadSettings();
   const headers = { 'User-Agent': 'TallyWatch-Manager', Accept: 'application/vnd.github+json' };
@@ -104,29 +135,32 @@ async function githubCheck() {
   if (!r.ok) throw new Error(`GitHub ${r.status} — ${r.status === 404 ? 'no releases yet, or private repo needs a token' : 'check owner/repo/token'}`);
   const rel = await r.json();
 
-  const asset = (rel.assets || []).find((a) => a.name.endsWith('.bin'));
-  if (!asset) throw new Error('Release has no .bin asset');
+  const version = (rel.tag_name || '').replace(/^v/, '');
+  const bundled = bundledFirmware();
+  const newer = !bundled || cmpVer(version, bundled.version) > 0;
 
-  fs.mkdirSync(CACHE_DIR(), { recursive: true });
-  const dest = path.join(CACHE_DIR(), asset.name);
-
-  if (!fs.existsSync(dest)) {
-    // GitHub asset download needs the octet-stream Accept + token for private repos
-    const dl = await fetchWithTimeout(asset.url, {
-      headers: { ...headers, Accept: 'application/octet-stream' },
-    }, 30000);
-    if (!dl.ok) throw new Error('Download failed ' + dl.status);
-    fs.writeFileSync(dest, Buffer.from(await dl.arrayBuffer()));
+  if (newer) {
+    const asset = (rel.assets || []).find((a) => a.name.endsWith('.bin'));
+    if (!asset) throw new Error('Release has no .bin asset');
+    fs.mkdirSync(CACHE_DIR(), { recursive: true });
+    const dest = path.join(CACHE_DIR(), asset.name);
+    if (!fs.existsSync(dest)) {
+      const dl = await fetchWithTimeout(asset.url, { headers: { ...headers, Accept: 'application/octet-stream' } }, 30000);
+      if (!dl.ok) throw new Error('Download failed ' + dl.status);
+      fs.writeFileSync(dest, Buffer.from(await dl.arrayBuffer()));
+    }
+    cachedGithub = { version, path: dest };
   }
 
-  return { version: (rel.tag_name || '').replace(/^v/, ''), asset: asset.name, path: dest, cached: true };
+  return { version, newer, active: activeFirmware() };
 }
 
-let cachedFirmware = null; // { version, path } from the last githubCheck
-
 async function pushFirmware(ip) {
-  if (!cachedFirmware) throw new Error('No firmware cached — run Check for Updates while online first');
-  const buf = fs.readFileSync(cachedFirmware.path);
+  const fw = activeFirmware();
+  if (!fw || !fw.available) {
+    throw new Error('No firmware .bin available — run manager/tools/bundle-firmware.sh, or Check GitHub while online');
+  }
+  const buf = fs.readFileSync(fw.path);
   const form = new FormData();
   form.append('firmware', new Blob([buf], { type: 'application/octet-stream' }), 'firmware.bin');
   const r = await fetchWithTimeout(`http://${ip}/update/firmware`, { method: 'POST', body: form }, 60000);
@@ -147,8 +181,11 @@ function registerIpc() {
     fetchWithTimeout(`http://${ip}/setlabel?value=${encodeURIComponent(value)}`, { method: 'POST' }).then((r) => r.ok));
   ipcMain.handle('beacon:push', (_e, ip) => pushFirmware(ip));
 
-  ipcMain.handle('github:check', async () => { cachedFirmware = await githubCheck(); return cachedFirmware; });
-  ipcMain.handle('github:cached', () => cachedFirmware);
+  ipcMain.handle('firmware:active', () => {
+    const fw = activeFirmware();
+    return fw ? { version: fw.version, codename: fw.codename, source: fw.source, available: fw.available } : null;
+  });
+  ipcMain.handle('github:check', () => githubCheck());
 
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('settings:set', (_e, s) => { saveSettings(s); return true; });

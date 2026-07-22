@@ -112,6 +112,15 @@
         }
         .subnet-hint b { color: var(--text); }
 
+        .fleet-bar {
+            display: flex; align-items: center; justify-content: space-between; gap: 14px;
+            padding: 12px 16px; margin-bottom: 16px;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--bg-elevated); font-size: 14px; font-weight: 600;
+        }
+        .fleet-bar .ok-txt { color: var(--emerald); }
+        .fleet-bar .warn-txt { color: var(--amber); }
+
         .beacon-grid { display: flex; flex-direction: column; gap: 12px; }
 
         .card {
@@ -202,7 +211,7 @@
         </div>
         <div class="toolbar">
             <span class="fw-pill" id="fw-pill">Firmware: —</span>
-            <button class="btn btn-secondary" id="check-btn">Check for Updates</button>
+            <button class="btn btn-secondary" id="check-btn">Check GitHub</button>
             <button class="btn btn-secondary" id="rescan-btn">Rescan</button>
             <button class="btn btn-secondary btn-sm" id="settings-btn">⚙</button>
         </div>
@@ -211,6 +220,10 @@
     <main>
         <div class="subnet-hint" id="subnet-hint">
             Discovery only sees beacons on the same network — <b>join the tally WiFi</b> to manage them.
+        </div>
+        <div class="fleet-bar" id="fleet-bar" style="display:none">
+            <span id="fleet-summary"></span>
+            <button class="btn btn-primary btn-sm" id="update-all-btn" style="display:none"></button>
         </div>
         <div class="beacon-grid" id="grid"></div>
         <div class="empty" id="empty" style="display:none">
