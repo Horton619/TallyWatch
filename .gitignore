@@ -1,0 +1,5 @@
+# Build artifacts from tools/flash.sh (arduino-cli --output-dir)
+.build/
+
+# macOS
+.DS_Store

@@ -9,6 +9,10 @@
   -- it declares the shared settings struct and expects the actual global
   instances (settings, deviceSerial, server, prefs) to be defined in the
   .ino below the include. Requires ArduinoJson (v7.x) via Library Manager.
+
+  NOTE: named web_routes.h, NOT webserver.h -- on a case-insensitive
+  filesystem (macOS) a local "webserver.h" collides with the ESP32 core's
+  <WebServer.h>, so #include <WebServer.h> would wrongly resolve to this file.
 */
 #pragma once
 
@@ -49,23 +53,23 @@ inline String signalStrength(int32_t rssi) {
 }
 
 inline void applySettingsFromJson(JsonDocument& doc) {
-    settings.ssid1 = (doc["ssid1"] | settings.ssid1).as<String>();
-    settings.pass1 = (doc["pass1"] | settings.pass1).as<String>();
-    settings.ssid2 = (doc["ssid2"] | settings.ssid2).as<String>();
-    settings.pass2 = (doc["pass2"] | settings.pass2).as<String>();
-    settings.ssid3 = (doc["ssid3"] | settings.ssid3).as<String>();
-    settings.pass3 = (doc["pass3"] | settings.pass3).as<String>();
-    settings.dhcp = (doc["dhcp"] | settings.dhcp).as<String>();
-    settings.static_ip = (doc["static_ip"] | settings.static_ip).as<String>();
-    settings.static_gateway = (doc["static_gateway"] | settings.static_gateway).as<String>();
-    settings.static_subnet = (doc["static_subnet"] | settings.static_subnet).as<String>();
-    settings.static_dns = (doc["static_dns"] | settings.static_dns).as<String>();
-    settings.wifi_indicator = (doc["wifi_indicator"] | settings.wifi_indicator).as<String>();
-    settings.companion_indicator = (doc["companion_indicator"] | settings.companion_indicator).as<String>();
-    settings.setup_indicator = (doc["setup_indicator"] | settings.setup_indicator).as<String>();
-    settings.ultra_bright = (doc["ultra_bright"] | settings.ultra_bright).as<String>();
-    settings.companion_ip = (doc["companion_ip"] | settings.companion_ip).as<String>();
-    settings.companion_port = (doc["companion_port"] | settings.companion_port).as<String>();
+    settings.ssid1 = doc["ssid1"] | settings.ssid1;
+    settings.pass1 = doc["pass1"] | settings.pass1;
+    settings.ssid2 = doc["ssid2"] | settings.ssid2;
+    settings.pass2 = doc["pass2"] | settings.pass2;
+    settings.ssid3 = doc["ssid3"] | settings.ssid3;
+    settings.pass3 = doc["pass3"] | settings.pass3;
+    settings.dhcp = doc["dhcp"] | settings.dhcp;
+    settings.static_ip = doc["static_ip"] | settings.static_ip;
+    settings.static_gateway = doc["static_gateway"] | settings.static_gateway;
+    settings.static_subnet = doc["static_subnet"] | settings.static_subnet;
+    settings.static_dns = doc["static_dns"] | settings.static_dns;
+    settings.wifi_indicator = doc["wifi_indicator"] | settings.wifi_indicator;
+    settings.companion_indicator = doc["companion_indicator"] | settings.companion_indicator;
+    settings.setup_indicator = doc["setup_indicator"] | settings.setup_indicator;
+    settings.ultra_bright = doc["ultra_bright"] | settings.ultra_bright;
+    settings.companion_ip = doc["companion_ip"] | settings.companion_ip;
+    settings.companion_port = doc["companion_port"] | settings.companion_port;
 }
 
 inline void handleRoot() {
