@@ -2,6 +2,14 @@
 
 ## Unreleased — WiFi update + fleet management
 
+- **Bridge mode is now the default base-station setup** — mAP lite as a plain access
+  point, beacons on static IPs on the production LAN alongside the Companion laptop, so
+  the manager runs on that laptop (no "join the tally WiFi"). NAT kept as an isolation
+  alternative. Added importable `docs/maplite-bridge.rsc` / `maplite-nat.rsc`.
+- **Manager manages beacon IPs** — per-beacon Network editor (DHCP/static) via a new
+  firmware `/setip` endpoint; `/status` now reports the beacon's IP config.
+
+
 - **Firmware OTA over WiFi** — beacons run their web server + advertise over mDNS
   during normal operation (not just setup mode); added `/update/firmware` (self-flash
   via `Update.h`), `/status`, `/setlabel`, `/identify` endpoints and a friendly

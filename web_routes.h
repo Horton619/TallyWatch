@@ -174,9 +174,28 @@ inline void handleGetStatus() {
     doc["companion_connected"] = client.connected() && deviceRegistered;
     doc["color"] = lastColorHex;
     doc["uptime_s"] = (uint32_t)(millis() / 1000);
+    doc["dhcp"] = settings.dhcp;
+    doc["static_ip"] = settings.static_ip;
+    doc["static_gateway"] = settings.static_gateway;
+    doc["static_subnet"] = settings.static_subnet;
+    doc["static_dns"] = settings.static_dns;
     String out;
     serializeJson(doc, out);
     server.send(200, "application/json", out);
+}
+
+// Set a beacon's IPv4 config (DHCP or static) from the manager, then reboot to
+// apply. On a bridged/no-DHCP show network each beacon gets a static address here.
+inline void handleSetIp() {
+    if (server.hasArg("dhcp")) settings.dhcp = server.arg("dhcp");
+    if (server.hasArg("ip")) settings.static_ip = server.arg("ip");
+    if (server.hasArg("gateway")) settings.static_gateway = server.arg("gateway");
+    if (server.hasArg("subnet")) settings.static_subnet = server.arg("subnet");
+    if (server.hasArg("dns")) settings.static_dns = server.arg("dns");
+    persistSettings();
+    server.send(200, "text/plain", "OK - rebooting");
+    restartPending = true;
+    restartAtMs = millis() + 500;
 }
 
 // Rename a beacon without a reboot (manager convenience).
@@ -228,6 +247,7 @@ inline void setupWebServerRoutes() {
     server.on("/status", HTTP_GET, handleGetStatus);
     server.on("/save", HTTP_POST, handlePostSave);
     server.on("/setlabel", HTTP_POST, handleSetLabel);
+    server.on("/setip", HTTP_POST, handleSetIp);
     server.on("/identify", HTTP_GET, handleIdentify);
     server.on("/reboot", HTTP_GET, handleGetReboot);
     server.on("/update/firmware", HTTP_POST, handleOtaDone, handleOtaUpload);

@@ -28,9 +28,10 @@ Because show networks are air-gapped, the beacons never touch GitHub — the man
 the courier: it carries firmware (bundled, or pulled from GitHub while online) and
 pushes it to beacons over the isolated network.
 
-> **Discovery requires being on the beacon subnet.** Because the base station NATs
-> the beacons onto their own WiFi subnet, join the **tally WiFi** on your laptop to
-> see and manage them — the app shows which network you're on as a reminder.
+> **Discovery works on the beacon's subnet.** In the default **bridge** setup the
+> beacons sit on your production LAN, so run the manager on the Companion control
+> laptop and it sees them directly. (If you use the NAT/isolation variant instead,
+> join the tally WiFi first — the app shows which network you're on.)
 
 ## Setup
 

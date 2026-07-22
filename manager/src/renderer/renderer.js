@@ -112,8 +112,11 @@ function render() {
       <div class="swatch" style="background:${escAttr(color)}"></div>
       <div class="b-main">
         <p class="b-label">${escHtml(b.label || 'Unnamed beacon')}
-          <span class="edit" data-rename="${escAttr(b.ip)}">rename</span></p>
-        <p class="b-meta"><span>${escHtml(b.ip)}</span><span>${escHtml(b.id || b.device_id || '')}</span>
+          <span class="edit" data-rename="${escAttr(b.ip)}">rename</span>
+          <span class="edit" data-ip="${escAttr(b.ip)}">network</span></p>
+        <p class="b-meta"><span>${escHtml(b.ip)}</span>
+          <span>${b.dhcp === '0' ? 'static' : 'DHCP'}</span>
+          <span>${escHtml(b.id || b.device_id || '')}</span>
           <span>up ${fmtUptime(b.uptime_s)}</span></p>
         <div class="badges">
           ${b.online === false
@@ -143,6 +146,8 @@ function render() {
     el.onclick = () => pushUpdate(el.dataset.update));
   grid.querySelectorAll('[data-rename]').forEach((el) =>
     el.onclick = () => openRename(el.dataset.rename));
+  grid.querySelectorAll('[data-ip]').forEach((el) =>
+    el.onclick = () => openIp(el.dataset.ip));
 }
 
 function updateButton(b, version, outOfDate) {
@@ -230,7 +235,7 @@ async function showSubnet() {
     const ips = await API.hostSubnet();
     if (ips && ips.length) {
       document.getElementById('subnet-hint').innerHTML =
-        `This laptop is on <b>${escHtml(ips.join(', '))}</b> — discovery only sees beacons on the same network. Join the tally WiFi to manage them.`;
+        `This computer is on <b>${escHtml(ips.join(', '))}</b> — discovery sees beacons on the same subnet. (Bridge mode: that's your production LAN, right here.)`;
     }
   } catch {}
 }
@@ -242,6 +247,8 @@ function wireUi() {
   document.getElementById('settings-btn').onclick = openSettings;
   document.getElementById('s-save').onclick = saveSettings;
   document.getElementById('rename-save').onclick = saveRename;
+  document.getElementById('ip-save').onclick = saveIp;
+  document.getElementById('ip-dhcp').onchange = toggleIpFields;
 }
 
 async function openSettings() {
@@ -275,6 +282,43 @@ async function saveRename() {
   } catch (e) { toast('Rename failed: ' + e.message, true); }
 }
 
+function openIp(ip) {
+  state.ipIp = ip;
+  const b = state.beacons.get(ip) || {};
+  document.getElementById('ip-modal-name').textContent = b.label || ip;
+  document.getElementById('ip-dhcp').checked = b.dhcp !== '0';
+  document.getElementById('ip-addr').value = b.static_ip || '';
+  document.getElementById('ip-gw').value = b.static_gateway || '';
+  document.getElementById('ip-sub').value = b.static_subnet || '255.255.255.0';
+  document.getElementById('ip-dns').value = b.static_dns || '';
+  toggleIpFields();
+  showModal('ip-modal');
+}
+
+function toggleIpFields() {
+  const on = document.getElementById('ip-dhcp').checked;
+  document.getElementById('ip-static-fields').style.opacity = on ? '0.4' : '1';
+  document.getElementById('ip-static-fields').style.pointerEvents = on ? 'none' : 'auto';
+}
+
+async function saveIp() {
+  const dhcp = document.getElementById('ip-dhcp').checked ? '1' : '0';
+  const cfg = {
+    dhcp,
+    ip: document.getElementById('ip-addr').value.trim(),
+    gateway: document.getElementById('ip-gw').value.trim(),
+    subnet: document.getElementById('ip-sub').value.trim(),
+    dns: document.getElementById('ip-dns').value.trim(),
+  };
+  try {
+    await API.setIp(state.ipIp, cfg);
+    // The beacon reboots at a new address; drop it so discovery re-adds it fresh.
+    state.beacons.delete(state.ipIp);
+    render(); closeModals();
+    toast('Network saved — beacon rebooting, it will reappear shortly.');
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
 function showModal(id) {
   document.getElementById('overlay').style.display = 'block';
   document.getElementById(id).style.display = 'block';
@@ -300,9 +344,9 @@ function escAttr(s) { return escHtml(s); }
 // ---------- browser-preview mock ----------
 function makeMock() {
   const beacons = [
-    { ip: '192.168.50.11', id: 'TallyWatch:AABBCC112233', fw: '1.0.0', label: 'Camera 1', companion_connected: true, wifi_rssi: -52, color: '#ef4444', uptime_s: 8400, firmware_version: '1.0.0' },
-    { ip: '192.168.50.12', id: 'TallyWatch:AABBCC445566', fw: '1.0.0', label: 'FOH Laptop', companion_connected: false, wifi_rssi: -68, color: '#000000', uptime_s: 320, firmware_version: '1.0.0' },
-    { ip: '192.168.50.13', id: 'TallyWatch:AABBCC778899', fw: '0.9.0', label: 'Stage Right', companion_connected: true, wifi_rssi: -80, color: '#22c55e', uptime_s: 15100, firmware_version: '0.9.0' },
+    { ip: '10.0.0.21', id: 'TallyWatch:AABBCC112233', fw: '1.0.0', label: 'Camera 1', companion_connected: true, wifi_rssi: -52, color: '#ef4444', uptime_s: 8400, firmware_version: '1.0.0', dhcp: '0', static_ip: '10.0.0.21', static_gateway: '10.0.0.1', static_subnet: '255.255.255.0', static_dns: '10.0.0.1' },
+    { ip: '10.0.0.22', id: 'TallyWatch:AABBCC445566', fw: '1.0.0', label: 'FOH Laptop', companion_connected: false, wifi_rssi: -68, color: '#000000', uptime_s: 320, firmware_version: '1.0.0', dhcp: '0', static_ip: '10.0.0.22', static_gateway: '10.0.0.1', static_subnet: '255.255.255.0', static_dns: '10.0.0.1' },
+    { ip: '10.0.0.23', id: 'TallyWatch:AABBCC778899', fw: '0.9.0', label: 'Stage Right', companion_connected: true, wifi_rssi: -80, color: '#22c55e', uptime_s: 15100, firmware_version: '0.9.0', dhcp: '0', static_ip: '10.0.0.23', static_gateway: '10.0.0.1', static_subnet: '255.255.255.0', static_dns: '10.0.0.1' },
   ];
   let cb = () => {};
   return {
@@ -314,6 +358,7 @@ function makeMock() {
     identify: async () => true,
     reboot: async () => true,
     setLabel: async () => true,
+    setIp: async () => true,
     push: async () => ({ ok: true, text: 'OK - rebooting' }),
     firmwareActive: async () => ({ version: '1.0.0', codename: 'First Light', source: 'bundled', available: true }),
     githubCheck: async () => ({ version: '1.0.0', newer: false, active: { version: '1.0.0', source: 'bundled', available: true } }),

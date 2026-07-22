@@ -151,13 +151,13 @@ brick or splitter dongle to pack, and run on PoE it never exposes a USB port.
   [Streakwave](https://www.streakwave.com/mikrotik-rbmapl-2nd-24ghz-map-lite-ap-80211bgn-2x2) ·
   [Baltic Networks](https://www.balticnetworks.com/products/mikrotik-map-lite-2-4ghz-magnetic-dual-chain-indoor-ap) ·
   [ISP Supplies](https://www.ispsupplies.com/MikroTik-RBmAPL-2nD)
-- **One-time setup:** paste-in config + steps in
+- **One-time setup:** config scripts + steps in
   [docs/basestation-maplite.md](docs/basestation-maplite.md). Configure it once
   and it's permanent.
-- **For static-IP / no-DHCP production networks** (the usual case here), that
-  config runs the base station as a small NAT router: it takes **one** static IP
-  on the production subnet and hands out DHCP to the beacons itself — so you only
-  assign one IP by hand and every beacon stays auto-config.
+- **Default is bridge mode** — the mAP lite is a plain access point, beacons get
+  static IPs on the production LAN (same subnet as the Companion laptop), and the
+  TallyWatch Manager runs right on that laptop. A NAT/isolation variant is
+  available if you'd rather keep wireless off the control network.
 
 ### PoE for the kit — TP-Link TL-POE160S injector
 

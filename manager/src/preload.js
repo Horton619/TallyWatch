@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('tallywatch', {
   identify: (ip) => ipcRenderer.invoke('beacon:identify', ip),
   reboot: (ip) => ipcRenderer.invoke('beacon:reboot', ip),
   setLabel: (ip, value) => ipcRenderer.invoke('beacon:setLabel', ip, value),
+  setIp: (ip, cfg) => ipcRenderer.invoke('beacon:setIp', ip, cfg),
   push: (ip) => ipcRenderer.invoke('beacon:push', ip),
 
   firmwareActive: () => ipcRenderer.invoke('firmware:active'),

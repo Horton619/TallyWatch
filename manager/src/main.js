@@ -179,6 +179,10 @@ function registerIpc() {
   ipcMain.handle('beacon:reboot', (_e, ip) => fetchWithTimeout(`http://${ip}/reboot`).then((r) => r.ok));
   ipcMain.handle('beacon:setLabel', (_e, ip, value) =>
     fetchWithTimeout(`http://${ip}/setlabel?value=${encodeURIComponent(value)}`, { method: 'POST' }).then((r) => r.ok));
+  ipcMain.handle('beacon:setIp', (_e, ip, cfg) => {
+    const q = new URLSearchParams(cfg).toString();
+    return fetchWithTimeout(`http://${ip}/setip?${q}`, { method: 'POST' }, 6000).then((r) => r.ok);
+  });
   ipcMain.handle('beacon:push', (_e, ip) => pushFirmware(ip));
 
   ipcMain.handle('firmware:active', () => {
