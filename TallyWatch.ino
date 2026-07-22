@@ -23,11 +23,20 @@
   "All Interfaces" (or a network this device can reach) or the device
   will spin red forever trying to connect.
 
-  Hardware (as tested):
-    - ESP32-C3 "Super Mini" board
-    - 1 WS2812/SK6812 addressable RGB LED, data pin -> LED_PIN below
-    - USB-C for power
+  Hardware (as built):
+    - ESP32-C3 "Super Mini" board, powered over its USB-C port
+    - 1 WS2812B addressable RGB LED (BTF-Lighting single pixel), wired:
+        LED DIN (data in, arrow pointing away from the pad) -> GPIO3 (LED_PIN)
+        LED VCC -> 3V3   (see note below)  |  LED GND -> GND
     - The board's onboard BOOT button doubles as the setup/reset button
+
+  WS2812B data-level note: the WS2812B wants a data "high" near 3.5V when
+  run at 5V, but the C3 only drives 3.3V. Powering the pixel from the C3's
+  3V3 pin (as above) lowers that threshold and makes a single pixel rock
+  solid. If you want maximum brightness instead, power the pixel from 5V
+  through a series Schottky diode (~4.5V) so the 3.3V data still clears the
+  threshold. LED_PIN is GPIO3 -- a plain GPIO, deliberately NOT one of the
+  C3 strapping pins (GPIO2/8/9), so it can't interfere with boot.
 
   Libraries (install via Arduino Library Manager):
     - Adafruit NeoPixel by Adafruit
@@ -71,9 +80,9 @@
 #include "webserver.h"
 
 // ---------------- Hardware config ----------------
-#define LED_PIN      2      // GPIO the LED data line is wired to
+#define LED_PIN      3      // WS2812B data line (GPIO3 -- non-strapping, safe)
 #define LED_COUNT    1       // set to e.g. 8 if using a small LED ring
-#define BOOT_PIN     9       // onboard BOOT button on most ESP32-C3 boards
+#define BOOT_PIN     9       // onboard BOOT button on the ESP32-C3 Super Mini
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 

@@ -43,34 +43,74 @@
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-            padding: 32px 16px 90px;
+            padding: 36px 16px 90px;
             -webkit-font-smoothing: antialiased;
         }
 
-        .eyebrow {
+        .hero {
             text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .eyebrow {
             font-size: 12px;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.2em;
             text-transform: uppercase;
             color: var(--accent);
             font-weight: 600;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         h1.wordmark {
-            text-align: center;
-            font-size: 30px;
-            font-weight: 700;
-            margin: 0 0 6px;
-            letter-spacing: -0.01em;
+            font-size: 32px;
+            font-weight: 800;
+            margin: 0 0 4px;
+            letter-spacing: -0.02em;
+        }
+
+        h1.wordmark .word {
+            display: inline-block;
+            opacity: 0;
+            transform: translateY(7px);
+            animation: wordIn 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+        }
+
+        h1.wordmark .word:nth-child(1) {
+            animation-delay: 0.08s;
+        }
+
+        h1.wordmark .word:nth-child(2) {
+            animation-delay: 0.22s;
+        }
+
+        @keyframes wordIn {
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .hero-rule {
+            width: 210px;
+            height: 1px;
+            margin: 12px auto 10px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            transform: scaleX(0);
+            animation: ruleGrow 0.8s ease 0.35s forwards;
+        }
+
+        @keyframes ruleGrow {
+            to {
+                transform: scaleX(1);
+            }
         }
 
         .device-id {
-            text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-faint);
-            margin: 0 0 28px;
+            margin: 0;
             font-variant-numeric: tabular-nums;
+            letter-spacing: 0.02em;
         }
 
         .main_container {
@@ -78,7 +118,7 @@
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             padding: 20px;
-            max-width: 420px;
+            max-width: 430px;
             margin: 0 auto;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
         }
@@ -88,7 +128,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            margin-bottom: 18px;
+            margin-bottom: 8px;
         }
 
         .btn {
@@ -97,9 +137,9 @@
             font-weight: 600;
             padding: 10px 16px;
             border-radius: var(--radius-sm);
-            border: none;
+            border: 1px solid transparent;
             cursor: pointer;
-            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+            transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.2s ease;
         }
 
         .btn:active {
@@ -109,16 +149,18 @@
         .btn-primary {
             background: var(--accent);
             color: var(--accent-text);
+            border-color: var(--accent);
         }
 
         .btn-primary:hover {
             background: var(--accent-hover);
+            border-color: var(--accent-hover);
         }
 
         .btn-secondary {
             background: transparent;
             color: var(--text-dim);
-            border: 1px solid var(--border-strong);
+            border-color: var(--border-strong);
         }
 
         .btn-secondary:hover {
@@ -129,7 +171,7 @@
         .btn-danger {
             background: transparent;
             color: var(--rose);
-            border: 1px solid rgba(244, 63, 94, 0.4);
+            border-color: rgba(244, 63, 94, 0.4);
         }
 
         .btn-danger:hover {
@@ -146,21 +188,22 @@
             width: 100%;
         }
 
-        .save-status {
-            position: relative;
-            display: inline-flex;
+        /* Save button draws attention only when changes are pending */
+        #save-btn.is-pending {
+            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.5);
+            animation: pendingPulse 2s ease-in-out infinite;
         }
 
-        .save-status .dot {
-            position: absolute;
-            top: -3px;
-            right: -3px;
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: var(--amber);
-            visibility: hidden;
-            box-shadow: 0 0 0 2px var(--bg-elevated);
+        @keyframes pendingPulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.45);
+            }
+            70% {
+                box-shadow: 0 0 0 8px rgba(34, 211, 238, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+            }
         }
 
         .publish-note {
@@ -175,7 +218,7 @@
             align-items: center;
             justify-content: space-between;
             width: 100%;
-            padding: 15px 16px;
+            padding: 13px 14px;
             margin-bottom: 10px;
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -195,20 +238,37 @@
         .menu-row .label {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 13px;
             font-size: 16px;
             font-weight: 600;
         }
 
         .menu-row .icon {
-            font-size: 18px;
-            width: 22px;
-            text-align: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(34, 211, 238, 0.1);
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .menu-row .icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .menu-row .right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .menu-row .chevron {
             color: var(--text-faint);
-            font-size: 16px;
+            font-size: 18px;
         }
 
         .status-pill {
@@ -217,9 +277,22 @@
             gap: 6px;
             font-size: 12px;
             font-weight: 600;
-            padding: 3px 9px;
+            padding: 4px 10px;
             border-radius: 999px;
-            margin-left: 8px;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .status-pill::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
         }
 
         .status-pill.ok {
@@ -277,14 +350,15 @@
         }
 
         .popup h2 {
-            font-size: 20px;
-            margin: 0 0 2px;
+            font-size: 21px;
+            margin: 0 0 4px;
         }
 
         .esc-hint {
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-faint);
             margin: 0 0 18px;
+            line-height: 1.4;
         }
 
         .section {
@@ -324,6 +398,20 @@
             padding: 16px 15px;
         }
 
+        .field-help {
+            font-size: 12px;
+            color: var(--text-faint);
+            margin: -8px 0 14px;
+            line-height: 1.45;
+        }
+
+        .section-intro {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin: 0 0 14px;
+            line-height: 1.45;
+        }
+
         label {
             display: block;
             font-size: 13px;
@@ -359,6 +447,7 @@
             accent-color: var(--accent);
             margin-right: 10px;
             vertical-align: middle;
+            flex-shrink: 0;
         }
 
         .checkbox-row {
@@ -367,16 +456,15 @@
             font-size: 14px;
             color: var(--text);
             font-weight: 500;
-            margin-bottom: 14px;
+            margin-bottom: 6px;
             cursor: pointer;
         }
 
-        .checkbox-row .hint {
-            display: block;
+        .checkbox-help {
             font-size: 12px;
             color: var(--text-faint);
-            margin: 2px 0 0 27px;
-            font-weight: 400;
+            margin: 0 0 16px 27px;
+            line-height: 1.45;
         }
 
         .password-wrap {
@@ -432,6 +520,7 @@
         .wifi-card .strength {
             font-size: 12px;
             color: var(--text-faint);
+            text-transform: capitalize;
         }
 
         .wifi-card .expand {
@@ -450,9 +539,25 @@
             margin-bottom: 10px;
         }
 
+        .saved-row:last-child {
+            margin-bottom: 0;
+        }
+
         .saved-row .ssid {
             font-size: 15px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .saved-row .order {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            background: rgba(34, 211, 238, 0.12);
+            border-radius: 5px;
+            padding: 2px 6px;
         }
 
         .empty-slot {
@@ -568,6 +673,17 @@
             color: var(--text-dim);
         }
 
+        @media (prefers-reduced-motion: reduce) {
+
+            h1.wordmark .word,
+            .hero-rule,
+            #save-btn.is-pending {
+                animation: none;
+                opacity: 1;
+                transform: none;
+            }
+        }
+
         @media (min-width: 480px) {
             .main_container {
                 padding: 26px;
@@ -578,39 +694,102 @@
 
 <body>
 
-    <div class="eyebrow">Visual Entropy Productions</div>
-    <h1 class="wordmark">TallyWatch Setup</h1>
-    <p class="device-id" id="device_id">LOADING…</p>
+    <div class="hero">
+        <div class="eyebrow">Visual Entropy Productions</div>
+        <h1 class="wordmark"><span class="word">TallyWatch</span> <span class="word">Setup</span></h1>
+        <div class="hero-rule"></div>
+        <p class="device-id" id="device_id">Connecting to device…</p>
+    </div>
 
     <div class="main_container">
         <div class="top-actions">
-            <button class="btn btn-secondary" onclick="exitSetup()">Cancel / Exit</button>
-            <span class="save-status">
-                <button class="btn btn-primary" onclick="publishChanges()">Save Settings</button>
-                <span class="dot" id="unsaved-dot"></span>
-            </span>
+            <button class="btn btn-secondary" id="exit-btn" onclick="exitSetup()">Exit Setup</button>
+            <button class="btn btn-secondary" id="save-btn" onclick="publishChanges()">Save &amp; Restart</button>
         </div>
-        <p class="publish-note">Saving restarts the device to apply changes.</p>
+        <p class="publish-note" id="publish-note">Configure below — changes apply when you Save &amp; Restart.</p>
 
         <div class="menu-row" onclick="showPopup('wifi')">
-            <div class="label"><span class="icon">📶</span>Network</div>
-            <span class="chevron">›</span>
+            <div class="label">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M5 12.55a11 11 0 0 1 14 0" />
+                        <path d="M8.5 16.1a6 6 0 0 1 7 0" />
+                        <path d="M2 8.82a15 15 0 0 1 20 0" />
+                        <line x1="12" y1="20" x2="12.01" y2="20" />
+                    </svg>
+                </span>Network
+            </div>
+            <div class="right">
+                <span class="status-pill" id="net_status"></span>
+                <span class="chevron">›</span>
+            </div>
         </div>
+
         <div class="menu-row" onclick="showPopup('companion')">
-            <div class="label"><span class="icon">🔗</span>Companion</div>
-            <span class="chevron">›</span>
+            <div class="label">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                </span>Companion
+            </div>
+            <div class="right">
+                <span class="status-pill" id="comp_status"></span>
+                <span class="chevron">›</span>
+            </div>
         </div>
+
         <div class="menu-row" onclick="showPopup('device')">
-            <div class="label"><span class="icon">💡</span>Device</div>
-            <span class="chevron">›</span>
+            <div class="label">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M9 18h6" />
+                        <path d="M10 22h4" />
+                        <path
+                            d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+                    </svg>
+                </span>Device
+            </div>
+            <div class="right">
+                <span class="chevron">›</span>
+            </div>
         </div>
+
         <div class="menu-row" onclick="showPopup('importexport')">
-            <div class="label"><span class="icon">⇅</span>Import / Export</div>
-            <span class="chevron">›</span>
+            <div class="label">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="17 1 21 5 17 9" />
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                        <polyline points="7 23 3 19 7 15" />
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                    </svg>
+                </span>Import &amp; Export
+            </div>
+            <div class="right">
+                <span class="chevron">›</span>
+            </div>
         </div>
+
         <div class="menu-row" onclick="showPopup('about')">
-            <div class="label"><span class="icon">ℹ</span>About</div>
-            <span class="chevron">›</span>
+            <div class="label">
+                <span class="icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                </span>About
+            </div>
+            <div class="right">
+                <span class="chevron">›</span>
+            </div>
         </div>
     </div>
 
@@ -625,7 +804,7 @@
                 <button class="btn btn-primary" onclick="saveWifi()">Save</button>
             </div>
             <h2>Network</h2>
-            <p class="esc-hint">Esc to close</p>
+            <p class="esc-hint">TallyWatch tries saved networks in order until one connects. Press Esc to close.</p>
 
             <div class="section">
                 <div class="section-header" onclick="toggleSection(this, 'saved_networks_body')">Saved Networks
@@ -645,10 +824,10 @@
             </div>
 
             <div class="section">
-                <div class="section-header" onclick="toggleSection(this, 'manual_add_body')">Manually Add <span
+                <div class="section-header" onclick="toggleSection(this, 'manual_add_body')">Add Manually <span
                         class="caret">⌄</span></div>
                 <div class="section-body" id="manual_add_body">
-                    <label for="manual_wifi_ssid">SSID</label>
+                    <label for="manual_wifi_ssid">Network name (SSID)</label>
                     <input type="text" id="manual_wifi_ssid">
                     <label for="manual_wifi_password">Password</label>
                     <div class="password-wrap">
@@ -661,22 +840,23 @@
             </div>
 
             <div class="section">
-                <div class="section-header" onclick="toggleSection(this, 'ipv4_body')">IPv4 Settings <span
+                <div class="section-header" onclick="toggleSection(this, 'ipv4_body')">IP Settings <span
                         class="caret">⌄</span></div>
                 <div class="section-body" id="ipv4_body">
                     <label class="checkbox-row" for="dhcp_check">
                         <input type="checkbox" id="dhcp_check" onclick="handleDHCPClick(this)">
-                        DHCP (automatic)
+                        Use DHCP (get an IP automatically)
                     </label>
+                    <p class="checkbox-help">Leave on unless your network needs a fixed address for this device.</p>
                     <div class="ip-fields" id="ip_fields">
                         <label for="ip">IP Address</label>
-                        <input type="text" id="ip">
+                        <input type="text" id="ip" inputmode="decimal">
                         <label for="gateway">Gateway</label>
-                        <input type="text" id="gateway">
-                        <label for="subnet">Subnet</label>
-                        <input type="text" id="subnet">
+                        <input type="text" id="gateway" inputmode="decimal">
+                        <label for="subnet">Subnet Mask</label>
+                        <input type="text" id="subnet" inputmode="decimal">
                         <label for="dns">DNS</label>
-                        <input type="text" id="dns">
+                        <input type="text" id="dns" inputmode="decimal">
                     </div>
                 </div>
             </div>
@@ -689,12 +869,13 @@
                 <button class="btn btn-primary" onclick="saveCompanion()">Save</button>
             </div>
             <h2>Companion</h2>
-            <p class="esc-hint">Esc to close</p>
+            <p class="esc-hint">Point TallyWatch at the machine running Bitfocus Companion. Press Esc to close.</p>
 
-            <label for="companion_ip">Companion PC IP Address</label>
-            <input type="text" id="companion_ip" placeholder="192.168.1.50">
-            <label for="companion_port">Satellite TCP Port</label>
-            <input type="text" id="companion_port" placeholder="16622">
+            <label for="companion_ip">Companion IP address</label>
+            <input type="text" id="companion_ip" placeholder="192.168.1.50" inputmode="decimal">
+            <label for="companion_port">Satellite API port</label>
+            <input type="text" id="companion_port" placeholder="16622" inputmode="numeric">
+            <p class="field-help">Default is 16622 — the Satellite TCP port in Companion, not the web-admin port.</p>
         </div>
 
         <!-- Device -->
@@ -704,34 +885,38 @@
                 <button class="btn btn-primary" onclick="saveDevice()">Save</button>
             </div>
             <h2>Device</h2>
-            <p class="esc-hint">Esc to close</p>
+            <p class="esc-hint">How the light looks and behaves. Press Esc to close.</p>
 
             <div class="section">
-                <div class="section-header" onclick="toggleSection(this, 'device_general_body')">General <span
+                <div class="section-header" onclick="toggleSection(this, 'device_general_body')">Brightness <span
                         class="caret">⌄</span></div>
                 <div class="section-body" id="device_general_body">
                     <label class="checkbox-row" for="ultra_bright">
                         <input type="checkbox" id="ultra_bright">
                         Ultra Bright Mode
                     </label>
+                    <p class="checkbox-help">Raises the light's maximum brightness for bright rooms and lit stages.
+                        Companion can still dim it remotely.</p>
                 </div>
             </div>
 
             <div class="section">
-                <div class="section-header" onclick="toggleSection(this, 'device_indicators_body')">Indicators <span
-                        class="caret">⌄</span></div>
+                <div class="section-header" onclick="toggleSection(this, 'device_indicators_body')">Status Indicators
+                    <span class="caret">⌄</span></div>
                 <div class="section-body" id="device_indicators_body">
+                    <p class="section-intro">Choose which status animations the light shows before it's live. Turn any
+                        off to keep the light dark during that state.</p>
                     <label class="checkbox-row" for="wifi_indicator">
                         <input type="checkbox" id="wifi_indicator">
-                        WiFi Connecting (blue)
+                        Connecting to WiFi (blue)
                     </label>
                     <label class="checkbox-row" for="companion_indicator">
                         <input type="checkbox" id="companion_indicator">
-                        Companion Connecting (red)
+                        Connecting to Companion (red)
                     </label>
                     <label class="checkbox-row" for="setup_indicator">
                         <input type="checkbox" id="setup_indicator">
-                        Setup Mode (green)
+                        Setup mode active (green)
                     </label>
                 </div>
             </div>
@@ -743,13 +928,25 @@
                 <button class="btn btn-secondary" onclick="closePopup()">Close</button>
                 <span></span>
             </div>
-            <h2>Import / Export</h2>
-            <p class="esc-hint">Esc to close</p>
+            <h2>Import &amp; Export</h2>
+            <p class="esc-hint">Back up this device's settings, or clone them onto another TallyWatch. Press Esc to
+                close.</p>
+
+            <div class="section">
+                <div class="section-header" onclick="toggleSection(this, 'export_body')">Export Config <span
+                        class="caret">⌄</span></div>
+                <div class="section-body" id="export_body">
+                    <p class="section-intro">Download every setting on this device as a <code>.json</code> file.</p>
+                    <button class="btn btn-secondary btn-block" onclick="exportConfig()">Export Config</button>
+                </div>
+            </div>
 
             <div class="section">
                 <div class="section-header" onclick="toggleSection(this, 'import_body')">Import Config <span
                         class="caret">⌄</span></div>
                 <div class="section-body" id="import_body">
+                    <p class="section-intro">Load settings from a <code>.json</code> file. Review them, then Save &amp;
+                        Restart to apply.</p>
                     <label class="file-btn">
                         <input type="file" id="configImportFile" accept=".json" onchange="displayConfigImportName()">
                         Choose File
@@ -757,14 +954,6 @@
                     <span class="file-name" id="config-import-name">No file chosen</span>
                     <div class="divider"></div>
                     <button class="btn btn-primary btn-block" onclick="uploadConfig()">Import Config</button>
-                </div>
-            </div>
-
-            <div class="section">
-                <div class="section-header" onclick="toggleSection(this, 'export_body')">Export Config <span
-                        class="caret">⌄</span></div>
-                <div class="section-body" id="export_body">
-                    <button class="btn btn-secondary btn-block" onclick="exportConfig()">Export Config</button>
                 </div>
             </div>
         </div>
@@ -776,7 +965,7 @@
                 <span></span>
             </div>
             <h2>About</h2>
-            <p class="esc-hint">Esc to close</p>
+            <p class="esc-hint">This device's identity and firmware. Press Esc to close.</p>
 
             <div class="about-row"><span class="k">Companion ID</span><span class="v" id="about_device_id"></span>
             </div>
@@ -802,14 +991,14 @@
 
     <script>
         // Set true only for local/browser preview during development -- never true in the
-        // gzip build shipped to the device.
+        // gzip build shipped to the device (tools/build-page.js forces it false).
         const DEV_MODE = true;
 
         var oldSettings = {};
 
         var settings = {
             ssid1: "", pass1: "", ssid2: "", pass2: "", ssid3: "", pass3: "",
-            dhcp: "0", static_ip: "", static_gateway: "", static_subnet: "", static_dns: "",
+            dhcp: "1", static_ip: "", static_gateway: "", static_subnet: "", static_dns: "",
             wifi_indicator: "1", companion_indicator: "1", setup_indicator: "1",
             ultra_bright: "0",
             companion_ip: "", companion_port: "16622",
@@ -903,18 +1092,45 @@
 
             handleDHCPClick(document.getElementById('dhcp_check'));
             renderSavedNetworks();
+            renderMenuStatus();
+        }
+
+        // State-aware menu rows: surface what still needs attention (amber) vs. done (emerald).
+        function renderMenuStatus() {
+            const saved = [settings.ssid1, settings.ssid2, settings.ssid3].filter(s => s && s.length).length;
+            const net = document.getElementById('net_status');
+            if (saved > 0) {
+                net.className = 'status-pill ok';
+                net.textContent = saved + (saved === 1 ? ' network' : ' networks');
+            } else {
+                net.className = 'status-pill pending';
+                net.textContent = 'Set up';
+            }
+
+            const comp = document.getElementById('comp_status');
+            if (settings.companion_ip && settings.companion_ip.length) {
+                comp.className = 'status-pill ok';
+                comp.textContent = settings.companion_ip;
+            } else {
+                comp.className = 'status-pill pending';
+                comp.textContent = 'No IP set';
+            }
         }
 
         function renderScannedNetworks() {
             const section = document.getElementById('wifi_pallet_area');
             section.innerHTML = '';
+            if (!scannedNetworks.list.length) {
+                section.innerHTML = '<p class="section-intro" style="margin:0">No networks found yet — try Rescan.</p>';
+                return;
+            }
             scannedNetworks.list.forEach((net, i) => {
                 const card = document.createElement('div');
                 card.className = 'wifi-card';
 
                 const row = document.createElement('div');
                 row.className = 'row';
-                row.innerHTML = `<span class="ssid">${escapeHtml(net.ssid)}</span><span class="strength">${net.strength}</span>`;
+                row.innerHTML = `<span class="ssid">${escapeHtml(net.ssid)}</span><span class="strength">${escapeHtml(net.strength)}</span>`;
                 row.onclick = () => {
                     const expand = card.querySelector('.expand');
                     expand.style.display = expand.style.display === 'block' ? 'none' : 'block';
@@ -945,14 +1161,14 @@
                 const row = document.createElement('div');
                 row.className = 'saved-row';
                 if (ssid) {
-                    row.innerHTML = `<span class="ssid">${escapeHtml(ssid)}</span>`;
+                    row.innerHTML = `<span class="ssid"><span class="order">${i}</span>${escapeHtml(ssid)}</span>`;
                     const btn = document.createElement('button');
                     btn.className = 'btn btn-danger';
                     btn.textContent = 'Delete';
                     btn.onclick = () => confirmDeleteNetwork(btn, i);
                     row.appendChild(btn);
                 } else {
-                    row.innerHTML = `<span class="empty-slot">Empty slot</span>`;
+                    row.innerHTML = `<span class="empty-slot">Open slot ${i}</span>`;
                 }
                 parent.appendChild(row);
             }
@@ -985,7 +1201,7 @@
         function addManualNetwork() {
             const ssid = document.getElementById('manual_wifi_ssid').value.trim();
             const pass = document.getElementById('manual_wifi_password').value;
-            if (!ssid) { showToast('Enter an SSID first.', true); return; }
+            if (!ssid) { showToast('Enter a network name first.', true); return; }
             addNetworkToSaved(ssid, pass);
             document.getElementById('manual_wifi_ssid').value = '';
             document.getElementById('manual_wifi_password').value = '';
@@ -1006,7 +1222,7 @@
                 }
             }
             const slot = firstEmptySlot();
-            if (!slot) { showToast('All 3 saved network slots are full — delete one first.', true); return; }
+            if (!slot) { showToast('All 3 saved slots are full — delete one first.', true); return; }
             settings['ssid' + slot] = ssid;
             settings['pass' + slot] = pass;
             renderSavedNetworks();
@@ -1039,7 +1255,7 @@
                     renderSettings();
                     markUnsaved();
                     closePopup();
-                    showToast('Config imported — review and Save Settings to apply.');
+                    showToast('Config imported — review it, then Save & Restart to apply.');
                 } catch (err) {
                     showToast('That file is not valid JSON.', true);
                 }
@@ -1073,15 +1289,15 @@
         }
 
         function markUnsaved() {
-            document.getElementById('unsaved-dot').style.visibility = 'visible';
+            const b = document.getElementById('save-btn');
+            b.classList.remove('btn-secondary');
+            b.classList.add('btn-primary', 'is-pending');
+            document.getElementById('publish-note').textContent = 'Unsaved changes — Save & Restart to apply them.';
+            renderMenuStatus();
         }
 
         function saveWifi() {
-            if (document.getElementById('dhcp_check').checked) {
-                settings.dhcp = "1";
-            } else {
-                settings.dhcp = "0";
-            }
+            settings.dhcp = document.getElementById('dhcp_check').checked ? "1" : "0";
             settings.static_ip = document.getElementById('ip').value;
             settings.static_gateway = document.getElementById('gateway').value;
             settings.static_subnet = document.getElementById('subnet').value;
@@ -1107,20 +1323,47 @@
         }
 
         function publishChanges() {
-            document.getElementById('unsaved-dot').style.visibility = 'hidden';
-            if (DEV_MODE) { showToast('Saved (dev preview — no device to reboot).'); return; }
+            if (DEV_MODE) { markSaved(); showToast('Saved (dev preview — no device to restart).'); return; }
             fetch('/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings)
             })
                 .then(r => r.text())
-                .then(() => showToast('Saved — TallyWatch is restarting.'))
-                .catch(() => { showToast('Save failed — try again.', true); markUnsaved(); });
+                .then(() => { markSaved(); showToast('Saved — TallyWatch is restarting.'); })
+                .catch(() => showToast('Save failed — try again.', true));
+        }
+
+        function markSaved() {
+            const b = document.getElementById('save-btn');
+            b.classList.remove('btn-primary', 'is-pending');
+            b.classList.add('btn-secondary');
+            document.getElementById('publish-note').textContent = 'Configure below — changes apply when you Save & Restart.';
+        }
+
+        function hasPendingChanges() {
+            return document.getElementById('save-btn').classList.contains('is-pending');
         }
 
         function exitSetup() {
-            if (!DEV_MODE) fetch('/reboot');
+            const b = document.getElementById('exit-btn');
+            if (hasPendingChanges() && b.dataset.confirming !== '1') {
+                b.dataset.confirming = '1';
+                b.textContent = 'Discard & exit?';
+                b.classList.remove('btn-secondary');
+                b.classList.add('btn-danger');
+                setTimeout(() => {
+                    if (b.isConnected && b.dataset.confirming === '1') {
+                        b.dataset.confirming = '0';
+                        b.textContent = 'Exit Setup';
+                        b.classList.remove('btn-danger');
+                        b.classList.add('btn-secondary');
+                    }
+                }, 3000);
+                return;
+            }
+            if (DEV_MODE) { showToast('Exiting setup (dev preview — no device to restart).'); return; }
+            fetch('/reboot');
         }
 
         function toggleSection(header, bodyId) {
@@ -1162,8 +1405,7 @@
 
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
-            const tag = e.target.tagName;
-            if (tag !== 'INPUT') return;
+            if (e.target.tagName !== 'INPUT') return;
             const openPopup = document.querySelector('.popup_choice[style*="display: block"]');
             if (!openPopup) return;
             const saveBtn = openPopup.querySelector('.popup-top .btn-primary');

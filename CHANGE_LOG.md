@@ -19,6 +19,14 @@ prototype into a named, VEP-branded product.
 - Rebranded: `DIYTallyLight` → `TallyWatch`, AP SSID `TallyLight-Setup` →
   `TallyWatch-Setup`, Companion `PRODUCT_NAME` → `TallyWatch`, device ID prefix
   `diytally:` → `TallyWatch:`.
+- UI/UX + copy pass: state-aware menu rows (Network/Companion surface their own
+  status), attention-cascade Save button, hero entrance animation (reduced-motion
+  aware), monoline SVG icons replacing emoji, and a two-step "Discard & exit".
+- Set `LED_PIN` to GPIO3 (off the C3 strapping pins) to match the real
+  Super Mini + WS2812B build; documented the 3V3-power data-level fix.
+- Added `tools/flash.sh` + `tools/setup-toolchain.sh` for no-IDE batch flashing,
+  a `BUILD.md` physical assembly/deploy guide, and `docs/V2_BATTERY.md` (parked
+  battery-variant spec + shopping list).
 
 Not yet verified on physical hardware — compile and end-to-end (WiFi, Companion
 handshake, LED behavior) testing is the next step.

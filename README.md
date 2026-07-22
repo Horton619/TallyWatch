@@ -44,9 +44,14 @@ breathing red forever, unable to open the socket.
 | USB-C cable | for power |
 | 3D-printed enclosure | diffuses the LED, houses the board |
 
-Wiring: LED data pin → GPIO2 (`LED_PIN` in `TallyWatch.ino`), LED power → 3.3V/5V and
-GND per your LED's spec. No external button needed — the board's onboard BOOT button
-(GPIO9) doubles as the setup/reset button.
+Wiring: LED data (DIN) → GPIO3 (`LED_PIN` in `TallyWatch.ino`), LED VCC → **3V3** (see
+the WS2812B note below), LED GND → GND. No external button needed — the board's
+onboard BOOT button (GPIO9) doubles as the setup/reset button. Full step-by-step in
+[BUILD.md](BUILD.md).
+
+> **WS2812B data-level note:** the pixel wants a ~3.5 V data "high" at 5 V, but the C3
+> only drives 3.3 V. Powering the pixel from **3V3** makes a single pixel reliable. For
+> maximum brightness instead, power it from 5 V through a series Schottky diode (~4.5 V).
 
 ## Firmware setup
 
