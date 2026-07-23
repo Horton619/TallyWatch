@@ -112,8 +112,7 @@ function render() {
       <div class="swatch" style="background:${escAttr(color)}"></div>
       <div class="b-main">
         <p class="b-label">${escHtml(b.label || 'Unnamed beacon')}
-          <span class="edit" data-rename="${escAttr(b.ip)}">rename</span>
-          <span class="edit" data-ip="${escAttr(b.ip)}">network</span></p>
+          <span class="edit" data-rename="${escAttr(b.ip)}">rename</span></p>
         <p class="b-meta"><span>${escHtml(b.ip)}</span>
           <span>${b.dhcp === '0' ? 'static' : 'DHCP'}</span>
           <span>${escHtml(b.id || b.device_id || '')}</span>
@@ -131,6 +130,7 @@ function render() {
         </div>
       </div>
       <div class="b-actions">
+        <button class="btn btn-secondary btn-sm" data-ip="${escAttr(b.ip)}">Network</button>
         <button class="btn btn-secondary btn-sm" data-identify="${escAttr(b.ip)}">Identify</button>
         ${updateButton(b, version, outOfDate)}
         <button class="btn btn-secondary btn-sm" data-reboot="${escAttr(b.ip)}">Reboot</button>
