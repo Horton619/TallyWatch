@@ -23,11 +23,18 @@ async function boot() {
   API.onBeaconsUpdated(onDiscovery);
   await API.discoverStart();
   onDiscovery(await API.discoverList());
-  setInterval(pollAll, 3000);
-  pollAll();
+  pollAll(); // one status refresh on launch; after that it's manual (Rescan)
 
   // GitHub is the ceiling: quietly see if there's something newer than the bundle.
   backgroundGithubCheck();
+}
+
+async function rescan() {
+  await API.discoverStop();
+  await API.discoverStart();
+  onDiscovery(await API.discoverList());
+  await pollAll();
+  toast('Rescanned.');
 }
 
 async function backgroundGithubCheck() {
@@ -44,25 +51,29 @@ async function backgroundGithubCheck() {
 }
 
 function onDiscovery(list) {
+  const fresh = [];
   for (const b of list) {
+    if (!state.beacons.has(b.ip)) fresh.push(b.ip);
     const existing = state.beacons.get(b.ip) || {};
     state.beacons.set(b.ip, { ...existing, ...b });
+  }
+  render();
+  fresh.forEach(refreshOne); // pull status once when a beacon first appears
+}
+
+async function refreshOne(ip) {
+  try {
+    const s = await API.status(ip);
+    state.beacons.set(ip, { ...state.beacons.get(ip), ...s, online: true });
+  } catch {
+    const b = state.beacons.get(ip);
+    if (b) b.online = false;
   }
   render();
 }
 
 async function pollAll() {
-  const ips = [...state.beacons.keys()];
-  await Promise.all(ips.map(async (ip) => {
-    try {
-      const s = await API.status(ip);
-      state.beacons.set(ip, { ...state.beacons.get(ip), ...s, online: true });
-    } catch {
-      const b = state.beacons.get(ip);
-      if (b) b.online = false;
-    }
-  }));
-  render();
+  await Promise.all([...state.beacons.keys()].map(refreshOne));
 }
 
 // ---------- rendering ----------
@@ -91,35 +102,59 @@ function isOutOfDate(b) {
   const v = beaconVersion(b);
   return !!(state.latest && v && cmpVersion(v, state.latest.version) < 0);
 }
+function isOffSubnet(b) {
+  return !!(state.adapter && b.ip && !sameSubnet(b.ip, state.adapter.address, state.adapter.netmask));
+}
+function maskToPrefix(mask) { return (ipToInt(mask).toString(2).match(/1/g) || []).length; }
 
 function render() {
   const grid = document.getElementById('grid');
-  const beacons = [...state.beacons.values()].sort((a, b) =>
-    (a.label || a.id || a.ip).localeCompare(b.label || b.id || b.ip));
+
+  // Preserve an in-progress name edit if a status refresh re-renders mid-type.
+  const active = document.activeElement;
+  let editState = null;
+  if (active && active.classList && active.classList.contains('b-name')) {
+    editState = { ip: active.dataset.ip, value: active.value, start: active.selectionStart, end: active.selectionEnd };
+  }
+
+  // Off-subnet beacons sort to the top and get loud treatment.
+  const beacons = [...state.beacons.values()].sort((a, b) => {
+    const oa = isOffSubnet(a), ob = isOffSubnet(b);
+    if (oa !== ob) return oa ? -1 : 1;
+    return (a.label || a.id || a.ip).localeCompare(b.label || b.id || b.ip);
+  });
 
   document.getElementById('empty').style.display = beacons.length ? 'none' : 'block';
   renderFleetBar(beacons);
+  renderAlertBar(beacons);
+
+  const subnetLabel = state.adapter ? `${state.adapter.address}/${maskToPrefix(state.adapter.netmask)}` : 'your subnet';
 
   grid.innerHTML = '';
   for (const b of beacons) {
     const version = beaconVersion(b);
     const outOfDate = isOutOfDate(b);
+    const offSubnet = isOffSubnet(b);
     const color = b.color && b.color !== '#000000' ? b.color : '#1a1e2b';
 
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'card' + (offSubnet ? ' alert' : '');
     card.innerHTML = `
       <div class="swatch" style="background:${escAttr(color)}"></div>
       <div class="b-main">
-        <p class="b-label">${escHtml(b.label || 'Unnamed beacon')}
-          <span class="edit" data-rename="${escAttr(b.ip)}">rename</span></p>
+        <div class="b-name-row">
+          <input class="b-name" data-ip="${escAttr(b.ip)}" data-orig="${escAttr(b.label || '')}"
+            value="${escAttr(b.label || '')}" placeholder="Name this beacon" spellcheck="false">
+          <button class="b-name-save" data-savename="${escAttr(b.ip)}" style="display:none">Save</button>
+        </div>
         <p class="b-meta"><span>${escHtml(b.ip)}</span>
           <span>${b.dhcp === '0' ? 'static' : 'DHCP'}</span>
           <span>${escHtml(b.id || b.device_id || '')}</span>
           <span>up ${fmtUptime(b.uptime_s)}</span></p>
         <div class="badges">
+          ${offSubnet ? `<span class="badge err">⚠ Off-subnet — not on ${escHtml(subnetLabel)}</span>` : ''}
           ${b.online === false
-            ? `<span class="badge err">Offline</span>`
+            ? `<span class="badge err">Unreachable</span>`
             : b.companion_connected
               ? `<span class="badge ok">Live · Companion</span>`
               : `<span class="badge warn">Waiting on Companion</span>`}
@@ -130,7 +165,7 @@ function render() {
         </div>
       </div>
       <div class="b-actions">
-        <button class="btn btn-secondary btn-sm" data-ip="${escAttr(b.ip)}">Network</button>
+        <button class="btn ${offSubnet ? 'btn-primary' : 'btn-secondary'} btn-sm" data-ip="${escAttr(b.ip)}">Change IP</button>
         <button class="btn btn-secondary btn-sm" data-identify="${escAttr(b.ip)}">Identify</button>
         ${updateButton(b, version, outOfDate)}
         <button class="btn btn-secondary btn-sm" data-reboot="${escAttr(b.ip)}">Reboot</button>
@@ -144,10 +179,45 @@ function render() {
     el.onclick = () => act(el.dataset.reboot, 'reboot', 'Reboot sent.'));
   grid.querySelectorAll('[data-update]').forEach((el) =>
     el.onclick = () => pushUpdate(el.dataset.update));
-  grid.querySelectorAll('[data-rename]').forEach((el) =>
-    el.onclick = () => openRename(el.dataset.rename));
   grid.querySelectorAll('[data-ip]').forEach((el) =>
     el.onclick = () => openIp(el.dataset.ip));
+  grid.querySelectorAll('.b-name').forEach((el) =>
+    el.oninput = () => { el.parentElement.querySelector('.b-name-save').style.display = el.value !== el.dataset.orig ? 'inline-block' : 'none'; });
+  grid.querySelectorAll('[data-savename]').forEach((el) =>
+    el.onclick = () => saveName(el.dataset.savename));
+
+  if (editState) {
+    const el = grid.querySelector(`.b-name[data-ip="${editState.ip}"]`);
+    if (el) {
+      el.value = editState.value;
+      el.focus();
+      try { el.setSelectionRange(editState.start, editState.end); } catch {}
+      el.parentElement.querySelector('.b-name-save').style.display = el.value !== el.dataset.orig ? 'inline-block' : 'none';
+    }
+  }
+}
+
+function renderAlertBar(beacons) {
+  const off = beacons.filter(isOffSubnet);
+  const bar = document.getElementById('alert-bar');
+  if (!off.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const ips = off.map((b) => escHtml(b.ip)).join(', ');
+  bar.innerHTML = `⚠ ${off.length} beacon${off.length > 1 ? 's' : ''} ${off.length > 1 ? 'have' : 'has'} an IP outside your subnet (${ips}) — ${off.length > 1 ? 'they' : 'it'} may be unreachable. Use <b>Change IP</b> to fix.`;
+}
+
+async function saveName(ip) {
+  const el = document.querySelector(`.b-name[data-ip="${ip}"]`);
+  if (!el) return;
+  const name = el.value.trim();
+  try {
+    await API.setLabel(ip, name);
+    const b = state.beacons.get(ip); if (b) b.label = name;
+    el.dataset.orig = name;
+    el.parentElement.querySelector('.b-name-save').style.display = 'none';
+    el.blur();
+    toast('Name saved.');
+  } catch (e) { toast('Save failed: ' + e.message, true); }
 }
 
 function updateButton(b, version, outOfDate) {
@@ -268,11 +338,10 @@ function deriveGateway(ip, mask) { return intToIp(((ipToInt(ip) & ipToInt(mask))
 
 // ---------- modals ----------
 function wireUi() {
-  document.getElementById('rescan-btn').onclick = async () => { await API.discoverStop(); await API.discoverStart(); toast('Rescanning…'); };
+  document.getElementById('rescan-btn').onclick = rescan;
   document.getElementById('check-btn').onclick = checkUpdates;
   document.getElementById('settings-btn').onclick = openSettings;
   document.getElementById('s-save').onclick = saveSettings;
-  document.getElementById('rename-save').onclick = saveRename;
   document.getElementById('ip-save').onclick = saveIp;
   document.getElementById('ip-dhcp').onchange = toggleIpFields;
   document.getElementById('warn-fix').onclick = hideWarn; // back to the IP modal to edit
@@ -292,21 +361,6 @@ async function saveSettings() {
     githubToken: document.getElementById('s-token').value.trim(),
   });
   closeModals(); toast('Saved.');
-}
-
-function openRename(ip) {
-  state.renameIp = ip;
-  const b = state.beacons.get(ip);
-  document.getElementById('rename-input').value = b?.label || '';
-  showModal('rename-modal');
-}
-async function saveRename() {
-  const name = document.getElementById('rename-input').value.trim();
-  try {
-    await API.setLabel(state.renameIp, name);
-    const b = state.beacons.get(state.renameIp); if (b) b.label = name;
-    render(); closeModals(); toast('Renamed.');
-  } catch (e) { toast('Rename failed: ' + e.message, true); }
 }
 
 function openIp(ip) {
@@ -410,6 +464,7 @@ function makeMock() {
     { ip: '10.0.0.21', id: 'TallyWatch:AABBCC112233', fw: '1.0.0', label: 'Camera 1', companion_connected: true, wifi_rssi: -52, color: '#ef4444', uptime_s: 8400, firmware_version: '1.0.0', dhcp: '0', static_ip: '10.0.0.21', static_gateway: '10.0.0.1', static_subnet: '255.255.255.0', static_dns: '10.0.0.1' },
     { ip: '10.0.0.22', id: 'TallyWatch:AABBCC445566', fw: '1.0.0', label: 'FOH Laptop', companion_connected: false, wifi_rssi: -68, color: '#000000', uptime_s: 320, firmware_version: '1.0.0', dhcp: '0', static_ip: '10.0.0.22', static_gateway: '10.0.0.1', static_subnet: '255.255.255.0', static_dns: '10.0.0.1' },
     { ip: '10.0.0.23', id: 'TallyWatch:AABBCC778899', fw: '0.9.0', label: 'Stage Right', companion_connected: true, wifi_rssi: -80, color: '#22c55e', uptime_s: 15100, firmware_version: '0.9.0', dhcp: '0', static_ip: '10.0.0.23', static_gateway: '10.0.0.1', static_subnet: '255.255.255.0', static_dns: '10.0.0.1' },
+    { ip: '192.168.1.77', id: 'TallyWatch:AABBCCAA0011', fw: '1.0.0', label: 'Booth', companion_connected: false, wifi_rssi: -61, color: '#000000', uptime_s: 90, firmware_version: '1.0.0', dhcp: '0', static_ip: '192.168.1.77', static_gateway: '192.168.1.1', static_subnet: '255.255.255.0', static_dns: '192.168.1.1' },
   ];
   let cb = () => {};
   return {
