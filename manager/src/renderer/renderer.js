@@ -165,7 +165,7 @@ function render() {
         </div>
       </div>
       <div class="b-actions">
-        <button class="btn ${offSubnet ? 'btn-primary' : 'btn-secondary'} btn-sm" data-ip="${escAttr(b.ip)}">Change IP</button>
+        <button class="btn ${offSubnet ? 'btn-primary' : 'btn-secondary'} btn-sm" data-changeip="${escAttr(b.ip)}">Change IP</button>
         <button class="btn btn-secondary btn-sm" data-identify="${escAttr(b.ip)}">Identify</button>
         ${updateButton(b, version, outOfDate)}
         <button class="btn btn-secondary btn-sm" data-reboot="${escAttr(b.ip)}">Reboot</button>
@@ -179,8 +179,8 @@ function render() {
     el.onclick = () => act(el.dataset.reboot, 'reboot', 'Reboot sent.'));
   grid.querySelectorAll('[data-update]').forEach((el) =>
     el.onclick = () => pushUpdate(el.dataset.update));
-  grid.querySelectorAll('[data-ip]').forEach((el) =>
-    el.onclick = () => openIp(el.dataset.ip));
+  grid.querySelectorAll('[data-changeip]').forEach((el) =>
+    el.onclick = () => openIp(el.dataset.changeip));
   grid.querySelectorAll('.b-name').forEach((el) =>
     el.oninput = () => { el.parentElement.querySelector('.b-name-save').style.display = el.value !== el.dataset.orig ? 'inline-block' : 'none'; });
   grid.querySelectorAll('[data-savename]').forEach((el) =>
