@@ -26,17 +26,20 @@
   Hardware (as built):
     - ESP32-C3 "Super Mini" board, powered over its USB-C port
     - 1 WS2812B addressable RGB LED (BTF-Lighting single pixel), wired:
-        LED DIN (data in, arrow pointing away from the pad) -> GPIO3 (LED_PIN)
-        LED VCC -> 3V3   (see note below)  |  LED GND -> GND
+        LED DIN -> GPIO3 (LED_PIN)
+        LED VCC -> 5V through a series silicon diode (1N4148/1N4007),
+                   band toward the LED  ->  ~4.3V at the pixel
+        LED GND -> GND
     - The board's onboard BOOT button doubles as the setup/reset button
 
-  WS2812B data-level note: the WS2812B wants a data "high" near 3.5V when
-  run at 5V, but the C3 only drives 3.3V. Powering the pixel from the C3's
-  3V3 pin (as above) lowers that threshold and makes a single pixel rock
-  solid. If you want maximum brightness instead, power the pixel from 5V
-  through a series Schottky diode (~4.5V) so the 3.3V data still clears the
-  threshold. LED_PIN is GPIO3 -- a plain GPIO, deliberately NOT one of the
-  C3 strapping pins (GPIO2/8/9), so it can't interfere with boot.
+  WS2812B supply note: the pixel reads data-high at 0.7 x its supply. On a
+  straight 5V rail that's 3.5V and the C3 only drives 3.3V (flicker). Running
+  the pixel off the 3V3 pin fixes the logic level but sits below the WS2812B's
+  ~3.5V minimum, so green/blue wash out and colors skew red -- unacceptable on
+  a tally light. One silicon diode lands ~4.3V: above the LED's minimum, and
+  its 3.01V threshold leaves margin under the C3's 3.3V. See docs/wiring.md.
+  LED_PIN is GPIO3 -- a plain GPIO, deliberately NOT one of the C3 strapping
+  pins (GPIO2/8/9), so it can't interfere with boot.
 
   Libraries (install via Arduino Library Manager):
     - Adafruit NeoPixel by Adafruit

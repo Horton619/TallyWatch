@@ -45,22 +45,24 @@ on the BTF-Lighting pixels the arrow points *away* from IN, toward OUT. Get this
 backwards and nothing lights.
 
 ```
-   ESP32-C3 Super Mini            WS2812B pixel
-   -------------------            -------------
-   GPIO3  ───────────────────►    DIN  (data in, arrow points away)
-   3V3    ───────────────────►    VCC / 5V / +
-   GND    ───────────────────►    GND / -
+   ESP32-C3 Super Mini                        WS2812B pixel
+   -------------------                        -------------
+   GPIO3  ──────────────────────────────►     DIN  (data in)
+   5V     ────►|── D1 (1N4148/1N4007) ──►     VCC  (~4.3 V)
+   GND    ──────────────────────────────►     GND
 ```
 
-**Why VCC goes to 3V3, not 5V:** the WS2812B wants a data "high" near 3.5 V when
-run at 5 V, but the C3 only drives 3.3 V — right under the line, which causes
-flicker or wrong colors. Powering the pixel from **3V3** drops that threshold so
-a single pixel is rock-solid.
+**One USB-C cable powers everything** — board plus LED draw ~150–200 mA typical
+against USB's 500 mA+. No external supply or power splitting needed.
 
-- Want **maximum brightness** (for lit stages / Ultra Bright Mode)? Instead
-  power VCC from **5V through a series Schottky diode** (any 1N5817-class part
-  from the ELEGOO kit works) — that lands ~4.5 V, bright, and the 3.3 V data
-  still clears the threshold.
+**Why the diode:** the WS2812B reads data-high at 0.7 × its supply. Straight 5 V
+needs 3.5 V and the C3 only drives 3.3 V (flicker); the 3V3 pin fixes that but
+sits under the LED's ~3.5 V minimum, so green/blue wash out and colors skew red.
+One ordinary silicon diode (band toward the LED) lands ~4.3 V — above the LED's
+minimum *and* below the logic threshold. Full brightness, correct color, reliable
+data.
+
+Full schematic, current budget, and troubleshooting: **[docs/wiring.md](docs/wiring.md)**.
 
 Insulate each joint with heat-shrink (slide it on *before* soldering the second
 end — easy to forget). A single pixel draws well under what a laptop USB-C port
