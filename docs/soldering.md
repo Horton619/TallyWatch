@@ -18,6 +18,18 @@ both surfaces. That distinction is the entire skill.
 
 ---
 
+## 1b. The five words you'll keep seeing
+
+| Word | What it means |
+|---|---|
+| **Solder** | The metal alloy on the spool. "63/37" = 63% tin, 37% lead. The only metal you buy. |
+| **Flux** | A mild chemical that strips oxide off hot metal so solder can bond. Without it solder beads up and won't stick. **Already inside rosin-core solder** — no need to buy it separately. |
+| **Tinning** | A *verb*, not a product. Coating something — the iron tip, a wire end, a pad — with a thin layer of solder. "Tin the wire" = "melt a little solder onto the wire." **There is no separate "tin" to purchase.** |
+| **Wetting** | Solder flowing out and bonding to metal instead of balling up. What you want to see. |
+| **Cold joint** | Solder that hardened without ever bonding. Looks connected, isn't. The main failure to avoid. |
+
+---
+
 ## 2. Safety
 
 **The tip runs ~350 °C (660 °F)** — hotter than a stove element, and it doesn't look hot.
@@ -45,7 +57,8 @@ because it runs either too cold to flow or hot enough to cook parts.
 | Item | What to get | ~Cost |
 |---|---|---|
 | **Soldering iron** | Any *temperature-controlled* station, or a Pinecil / TS101. Adjustable temp is the requirement. | $40–60 |
-| **Solder** | **63/37 leaded, rosin-core, 0.8 mm** — far easier to learn on than lead-free | $10 |
+| **Solder** | **63/37 leaded, rosin-core, 0.8 mm** — far easier to learn on than lead-free. Label must say *rosin core* / *flux core*; solid-core has no flux and is miserable. | $10 |
+| Flux pen *(optional)* | Not needed for fresh joints — rosin-core solder carries its own. Worth it anyway: desoldering braid works far better with extra flux, and rework is where beginners spend their time. | $8 |
 | **Brass wool tip cleaner** | Better than a wet sponge (doesn't cool the tip) | $6 |
 | **Safety glasses** | Any | $5 |
 | **Flush cutters** | For trimming wire and component legs | $8 |
