@@ -63,6 +63,8 @@ minimum *and* below the logic threshold. Full brightness, correct color, reliabl
 data.
 
 Full schematic, current budget, and troubleshooting: **[docs/wiring.md](docs/wiring.md)**.
+Never soldered before? Start with **[docs/soldering.md](docs/soldering.md)** — safety, tools,
+technique, and how to tell a good joint from a bad one.
 
 Insulate each joint with heat-shrink (slide it on *before* soldering the second
 end — easy to forget). A single pixel draws well under what a laptop USB-C port
