@@ -7,7 +7,7 @@
 //   - GitHub release check + local firmware caching (the "courier" model: pull
 //     when the laptop is online, push to beacons on the isolated show network)
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -185,6 +185,7 @@ function registerIpc() {
     return fetchWithTimeout(`http://${ip}/setip?${q}`, { method: 'POST' }, 6000).then((r) => r.ok);
   });
   ipcMain.handle('beacon:push', (_e, ip) => pushFirmware(ip));
+  ipcMain.handle('beacon:openSetup', (_e, ip) => { shell.openExternal(`http://${ip}/`); return true; });
 
   ipcMain.handle('firmware:active', () => {
     const fw = activeFirmware();

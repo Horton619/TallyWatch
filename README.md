@@ -129,6 +129,6 @@ Firmware releases are built by CI (`.github/workflows/release-firmware.yml`) —
 
 - Single LED by default — bump `LED_COUNT` in `TallyWatch.ino` and wire a small ring
   if you want a closer "spinning connect" look.
-- Compiled clean for the ESP32-C3, but on-hardware behavior (LED, WiFi join, live
-  Companion sync, mDNS/OTA against real devices) is not yet validated — see
-  `CHANGE_LOG.md`.
+- Validated end-to-end on hardware (LED, WiFi join, live Companion sync — see
+  `CHANGE_LOG.md`). Exercising mDNS discovery and OTA against multiple real beacons
+  is the next thing to shake out as the fleet grows past one unit.

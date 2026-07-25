@@ -2,6 +2,17 @@
 
 ## Unreleased — WiFi update + fleet management
 
+- **First beacon validated end-to-end on hardware (2026-07-24).** A beacon
+  assembled (ESP32-C3 Super Mini + 9 mm WS2812B pixel, powered from USB-C with a
+  series silicon diode dropping 5 V→~4.3 V), flashed over USB, joined WiFi,
+  registered with Bitfocus Companion as a Satellite surface, and mirrored a
+  button's background color onto the LED. The whole chain works: solder →
+  firmware → WiFi → Satellite protocol → Companion → LED.
+- **Manager: "Configure" button** opens a beacon's live setup page at
+  `http://<ip>/` in the browser. Because the firmware serves its full
+  setup/Companion page during *normal* operation (not just setup mode), no
+  BOOT-into-AP dance is needed once a beacon is on the network. Ran the Electron
+  manager for the first time.
 - **Bridge mode is now the default base-station setup** — mAP lite as a plain access
   point, beacons on static IPs on the production LAN alongside the Companion laptop, so
   the manager runs on that laptop (no "join the tally WiFi"). NAT kept as an isolation

@@ -165,6 +165,7 @@ function render() {
         </div>
       </div>
       <div class="b-actions">
+        <button class="btn ${(b.online !== false && !offSubnet && !outOfDate) ? 'btn-primary' : 'btn-secondary'} btn-sm" data-setup="${escAttr(b.ip)}" ${(b.online === false || offSubnet) ? 'disabled' : ''}>Configure</button>
         <button class="btn ${offSubnet ? 'btn-primary' : 'btn-secondary'} btn-sm" data-changeip="${escAttr(b.ip)}">Change IP</button>
         <button class="btn btn-secondary btn-sm" data-identify="${escAttr(b.ip)}">Identify</button>
         ${updateButton(b, version, outOfDate)}
@@ -179,6 +180,8 @@ function render() {
     el.onclick = () => act(el.dataset.reboot, 'reboot', 'Reboot sent.'));
   grid.querySelectorAll('[data-update]').forEach((el) =>
     el.onclick = () => pushUpdate(el.dataset.update));
+  grid.querySelectorAll('[data-setup]').forEach((el) =>
+    el.onclick = () => { API.openSetup(el.dataset.setup); toast('Opening the beacon’s setup page in your browser…'); });
   grid.querySelectorAll('[data-changeip]').forEach((el) =>
     el.onclick = () => openIp(el.dataset.changeip));
   grid.querySelectorAll('.b-name').forEach((el) =>
@@ -477,6 +480,7 @@ function makeMock() {
     reboot: async () => true,
     setLabel: async () => true,
     setIp: async () => true,
+    openSetup: async () => true,
     push: async () => ({ ok: true, text: 'OK - rebooting' }),
     firmwareActive: async () => ({ version: '1.0.0', codename: 'First Light', source: 'bundled', available: true }),
     githubCheck: async () => ({ version: '1.0.0', newer: false, active: { version: '1.0.0', source: 'bundled', available: true } }),
