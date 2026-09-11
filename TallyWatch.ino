@@ -81,6 +81,7 @@
 #include <ESPmDNS.h>
 #include <Preferences.h>
 #include <Adafruit_NeoPixel.h>
+#include <esp_mac.h> // esp_read_mac(): reads the eFuse MAC without WiFi being up
 #include "web_routes.h"
 
 // Zero-touch provisioning defaults. Put real values in secrets.h (git-ignored) to
@@ -544,8 +545,14 @@ void handleSerial() {
 
 // ================= Setup / loop =================
 String macSerial() {
+  // Read the MAC straight from eFuse. WiFi.macAddress() returns all-zeros
+  // when the WiFi driver isn't started yet (arduino-esp32 core v3 dropped the
+  // esp_read_mac fallback it had in v2), and macSerial() runs in setup()
+  // before any WiFi init -- so every beacon would otherwise derive the same
+  // "TallyWatch:000000000000" id and Companion, which routes surfaces by
+  // DEVICEID/SERIAL, would only ever show one beacon at a time.
   uint8_t mac[6];
-  WiFi.macAddress(mac);
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
   char buf[28];
   snprintf(buf, sizeof(buf), "TallyWatch:%02X%02X%02X%02X%02X%02X",
            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -576,10 +583,13 @@ void setup() {
   prefs.begin("tally", false);
   loadSettings();
 
-  // Stable per-device ID, generated once (needs WiFi.macAddress, which
-  // works even before connecting).
+  // Stable per-device ID, derived once from the eFuse MAC. Regenerate it when
+  // it's missing OR when it's the all-zero id an older firmware persisted (that
+  // build read the MAC via WiFi.macAddress() before WiFi was up and got zeros
+  // on core v3) -- otherwise a fleet flashed with that build stays stuck all
+  // sharing "TallyWatch:000000000000" and Companion only shows one beacon.
   deviceSerial = prefs.getString("serial", "");
-  if (deviceSerial.length() == 0) {
+  if (deviceSerial.length() == 0 || deviceSerial == "TallyWatch:000000000000") {
     deviceSerial = macSerial();
     prefs.putString("serial", deviceSerial);
   }

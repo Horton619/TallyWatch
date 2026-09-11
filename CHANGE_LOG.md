@@ -2,6 +2,17 @@
 
 ## Unreleased — WiFi update + fleet management
 
+- **Fix: multiple beacons collapsing to one surface in Companion.** The stable
+  device id was derived from `WiFi.macAddress()`, but that's called in `setup()`
+  before WiFi is initialized — and arduino-esp32 core v3 dropped the eFuse
+  fallback core v2 had, so it returns `00:00:00:00:00:00`. Every beacon flashed
+  with a v3 toolchain therefore persisted the same id (`TallyWatch:000000000000`)
+  and, because Companion routes Satellite surfaces by DEVICEID/SERIAL, only one
+  beacon was ever visible at a time. A single beacon worked (nothing to collide
+  with), which is why the first hardware bring-up didn't catch it. Now the id is
+  read from eFuse via `esp_read_mac()`, which works with WiFi down; beacons that
+  already stored the all-zero id regenerate a real one on the next boot (no
+  factory reset needed). The USB `getabout` MAC field got the same fix.
 - **USB provisioning in Lightkeeper** — configure a beacon over its USB cable
   before it's ever on WiFi (solves the chicken-and-egg where a network-only
   manager can't reach an unconfigured beacon). New **USB Setup** panel scans for
