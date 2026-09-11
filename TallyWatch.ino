@@ -83,6 +83,23 @@
 #include <Adafruit_NeoPixel.h>
 #include "web_routes.h"
 
+// Zero-touch provisioning defaults. Put real values in secrets.h (git-ignored) to
+// bake them into a locally-flashed beacon so it auto-joins on first boot. Without
+// secrets.h (e.g. the CI release build) these stay blank and a fresh beacon boots
+// into setup mode instead. Saved settings in NVS always win over these.
+#if __has_include("secrets.h")
+  #include "secrets.h"
+#endif
+#ifndef DEFAULT_WIFI_SSID
+  #define DEFAULT_WIFI_SSID ""
+#endif
+#ifndef DEFAULT_WIFI_PASS
+  #define DEFAULT_WIFI_PASS ""
+#endif
+#ifndef DEFAULT_COMPANION_IP
+  #define DEFAULT_COMPANION_IP ""
+#endif
+
 // ---------------- Hardware config ----------------
 #define LED_PIN      3      // WS2812B data line (GPIO3 -- non-strapping, safe)
 #define LED_COUNT    1       // set to e.g. 8 if using a small LED ring
@@ -179,8 +196,8 @@ void restoreLastColor() {
 
 // ================= Settings persistence =================
 void loadSettings() {
-  settings.ssid1 = prefs.getString("ssid1", "");
-  settings.pass1 = prefs.getString("pass1", "");
+  settings.ssid1 = prefs.getString("ssid1", DEFAULT_WIFI_SSID);
+  settings.pass1 = prefs.getString("pass1", DEFAULT_WIFI_PASS);
   settings.ssid2 = prefs.getString("ssid2", "");
   settings.pass2 = prefs.getString("pass2", "");
   settings.ssid3 = prefs.getString("ssid3", "");
@@ -194,7 +211,7 @@ void loadSettings() {
   settings.companion_indicator = prefs.getString("ind_comp", "1");
   settings.setup_indicator = prefs.getString("ind_setup", "1");
   settings.ultra_bright = prefs.getString("ultra", "0");
-  settings.companion_ip = prefs.getString("comp_ip", "");
+  settings.companion_ip = prefs.getString("comp_ip", DEFAULT_COMPANION_IP);
   settings.companion_port = prefs.getString("comp_port", "16622");
   settings.label = prefs.getString("label", "");
 }

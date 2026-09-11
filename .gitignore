@@ -11,5 +11,8 @@ manager/dist/
 # manifest.json is committed, the binary is not — keeps the repo lean)
 manager/firmware/*.bin
 
+# Local provisioning secrets (baked into locally-flashed firmware, never committed)
+secrets.h
+
 # macOS
 .DS_Store
