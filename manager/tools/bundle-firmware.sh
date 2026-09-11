@@ -12,7 +12,9 @@ CODENAME=$(grep 'FW_CODENAME =' "$ROOT/TallyWatch.ino" | sed -E 's/.*"([^"]+)".*
 
 echo "==> Building firmware v$VER ($CODENAME)"
 node "$ROOT/tools/build-page.js"
-arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir "$ROOT/.build" "$ROOT"
+# CDCOnBoot=cdc routes Serial to the native USB port (matches flash.sh + CI) so
+# the bundled/OTA'd firmware supports USB serial provisioning.
+arduino-cli compile --fqbn esp32:esp32:esp32c3:CDCOnBoot=cdc --output-dir "$ROOT/.build" "$ROOT"
 
 mkdir -p "$OUT"
 # clear any older bundled bin so only one ships

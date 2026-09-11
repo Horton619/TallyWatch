@@ -42,7 +42,9 @@ jobs:
 
       - name: Compile firmware
         run: |
-          arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir build .
+          # CDCOnBoot=cdc routes Serial to the native USB port (matches flash.sh).
+          # Compile-time flag -- required for USB serial provisioning to work.
+          arduino-cli compile --fqbn esp32:esp32:esp32c3:CDCOnBoot=cdc --output-dir build .
           cp build/TallyWatch.ino.bin "TallyWatch-${GITHUB_REF_NAME}.bin"
 
       - name: Publish release
