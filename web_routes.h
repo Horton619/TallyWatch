@@ -113,8 +113,10 @@ inline void buildAboutJson(JsonObject o) {
     o["firmware_name"] = FW_CODENAME;
     int colonIdx = deviceSerial.indexOf(':');
     o["serial_number"] = colonIdx >= 0 ? deviceSerial.substring(colonIdx + 1) : deviceSerial;
+    // eFuse read, not WiFi.macAddress(): getabout is served over USB during
+    // bench provisioning before WiFi is up, where WiFi.macAddress() reads zeros.
     uint8_t mac[6];
-    WiFi.macAddress(mac);
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     o["mac_address"] = macStr;
