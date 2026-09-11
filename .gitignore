@@ -1,6 +1,7 @@
 # Build artifacts (arduino-cli --output-dir, from flash.sh / bundle-firmware.sh / CI)
-.build/
-build/
+# Anchored to repo root so it doesn't catch manager/build/ (app icon lives there)
+/.build/
+/build/
 
 # Electron manager deps / builds
 manager/node_modules/

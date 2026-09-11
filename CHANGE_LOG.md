@@ -2,6 +2,12 @@
 
 ## Unreleased — WiFi update + fleet management
 
+- **Manager renamed "Lightkeeper"** with an emerald-lighthouse app icon
+  (`manager/build/icon.svg`/`.png`) — the guiding light that tends the fleet.
+  Product name, app id, window title, and docs updated.
+- **Windows installer pipeline** — `.github/workflows/release-manager.yml` builds
+  a signed-later NSIS `.exe` on a `manager-v*` tag and attaches it to a Release,
+  so show machines install Lightkeeper by double-click (no Node/git/terminal).
 - **First beacon validated end-to-end on hardware (2026-07-24).** A beacon
   assembled (ESP32-C3 Super Mini + 9 mm WS2812B pixel, powered from USB-C with a
   series silicon diode dropping 5 V→~4.3 V), flashed over USB, joined WiFi,

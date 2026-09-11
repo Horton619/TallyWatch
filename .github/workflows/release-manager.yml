@@ -1,0 +1,39 @@
+name: release-manager
+
+# Push a tag like `manager-v1.0.0` to build a Windows installer for the
+# TallyWatch Manager and attach it to a GitHub Release. Download the .exe from
+# that release and run it on any Windows machine — no Node/git/terminal needed.
+on:
+  push:
+    tags: ['manager-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: manager
+        run: npm install
+
+      - name: Build Windows installer
+        working-directory: manager
+        run: npx electron-builder --win
+
+      - name: Publish release
+        working-directory: manager
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.exe \
+            --title "Lightkeeper $GITHUB_REF_NAME" \
+            --generate-notes

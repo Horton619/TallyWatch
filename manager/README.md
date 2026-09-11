@@ -1,7 +1,7 @@
-# TallyWatch Manager
+# Lightkeeper
 
 A desktop app (Electron) to discover, monitor, and update TallyWatch beacons on a
-show network. Visual Entropy Productions.
+show network — the guiding light that tends the fleet. Visual Entropy Productions.
 
 ## What it does
 
