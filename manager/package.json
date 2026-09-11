@@ -16,6 +16,7 @@
     "directories": {
       "output": "dist"
     },
+    "npmRebuild": false,
     "files": [
       "src/**/*",
       "firmware/**/*",
@@ -27,6 +28,26 @@
         "nsis"
       ],
       "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": {
+        "teamId": "L5KZ5KGKXC"
+      },
+      "artifactName": "${productName}-${version}-arm64.${ext}"
     },
     "nsis": {
       "oneClick": false,

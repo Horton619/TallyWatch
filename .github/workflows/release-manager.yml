@@ -1,8 +1,9 @@
 name: release-manager
 
-# Push a tag like `manager-v1.0.0` to build a Windows installer for the
-# TallyWatch Manager and attach it to a GitHub Release. Download the .exe from
-# that release and run it on any Windows machine — no Node/git/terminal needed.
+# Push a tag like `manager-v1.0.0` to build Lightkeeper installers and attach
+# them to a GitHub Release: a Windows .exe (no Node/git/terminal needed to run)
+# and a signed + notarized macOS .dmg (Apple Silicon). Both jobs publish to the
+# same release; whichever finishes first creates it, the other uploads into it.
 on:
   push:
     tags: ['manager-v*']
@@ -34,6 +35,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.exe \
-            --title "Lightkeeper $GITHUB_REF_NAME" \
-            --generate-notes
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Lightkeeper $GITHUB_REF_NAME" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" dist/*.exe --clobber
+
+  build-mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: manager
+        run: npm install
+
+      - name: Build, sign & notarize macOS app
+        working-directory: manager
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --mac
+
+      - name: Publish release
+        working-directory: manager
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Lightkeeper $GITHUB_REF_NAME" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" dist/*.dmg --clobber
