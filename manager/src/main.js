@@ -7,12 +7,14 @@
 //   - GitHub release check + local firmware caching (the "courier" model: pull
 //     when the laptop is online, push to beacons on the isolated show network)
 
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { execFile } = require('child_process');
 const { Bonjour } = require('bonjour-service');
+const { SerialPort } = require('serialport');
+const { ReadlineParser } = require('@serialport/parser-readline');
 
 const SETTINGS_PATH = () => path.join(app.getPath('userData'), 'settings.json');
 const CACHE_DIR = () => path.join(app.getPath('userData'), 'firmware-cache');
@@ -169,6 +171,182 @@ async function pushFirmware(ip) {
   return { ok: r.ok && text.startsWith('OK'), text };
 }
 
+// ---------- USB serial provisioning ----------
+// Configure beacons over the wire before they're ever on WiFi. A beacon speaks a
+// line-delimited JSON protocol over its native USB-CDC port (see handleSerial in
+// the firmware). We open each candidate port, ping it, and keep the ones that
+// answer with the tallywatch marker — so several beacons on one machine each show
+// up as a distinct, identifiable row.
+
+const usbPorts = new Map(); // path -> BeaconPort (kept open across a provisioning session)
+
+// A single beacon's serial connection: line-in/line-out JSON with per-port
+// command serialization (the firmware answers one line per command).
+class BeaconPort {
+  constructor(portPath) {
+    this.path = portPath;
+    this.port = new SerialPort({ path: portPath, baudRate: 115200, autoOpen: false });
+    this.parser = this.port.pipe(new ReadlineParser({ delimiter: '\n' }));
+    this.waiters = [];
+    this.chain = Promise.resolve();
+    this.parser.on('data', (line) => this._onLine(line));
+    this.port.on('close', () => this._flush(new Error('port closed')));
+    this.port.on('error', () => {}); // surfaced via request rejections
+  }
+
+  // node-serialport asserts DTR/RTS on open, which on the ESP32-C3's built-in
+  // USB-JTAG bridge maps to EN/BOOT and can nudge the chip into a non-responsive
+  // state. Drop both lines, then let it settle before we send anything.
+  open() {
+    return new Promise((resolve, reject) => {
+      this.port.open((err) => {
+        if (err) return reject(err);
+        this.port.set({ dtr: false, rts: false }, () => setTimeout(resolve, 400));
+      });
+    });
+  }
+
+  _onLine(line) {
+    const s = String(line).trim();
+    if (!s) return;
+    let obj;
+    try { obj = JSON.parse(s); } catch { return; } // ignore any non-JSON noise
+    // Match by the echoed cmd so a late/duplicate reply (e.g. from a retried
+    // ping) can't resolve the wrong request. Fall back to FIFO if no cmd.
+    let idx = obj.cmd ? this.waiters.findIndex((w) => w.cmd === obj.cmd) : 0;
+    if (idx < 0) return; // orphan reply with no matching waiter — drop it
+    const w = this.waiters.splice(idx, 1)[0];
+    if (w) { clearTimeout(w.timer); w.resolve(obj); }
+  }
+
+  _flush(err) {
+    while (this.waiters.length) { const w = this.waiters.shift(); clearTimeout(w.timer); w.reject(err); }
+  }
+
+  // One write + wait for the matching reply.
+  _attempt(obj, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const w = { resolve, reject, cmd: obj.cmd };
+      w.timer = setTimeout(() => {
+        const i = this.waiters.indexOf(w);
+        if (i >= 0) this.waiters.splice(i, 1);
+        reject(new Error('serial timeout'));
+      }, timeoutMs);
+      this.waiters.push(w);
+      this.port.write(JSON.stringify(obj) + '\n', (err) => {
+        if (err) { clearTimeout(w.timer); const i = this.waiters.indexOf(w); if (i >= 0) this.waiters.splice(i, 1); reject(err); }
+      });
+    });
+  }
+
+  // Serialized so overlapping IPC calls to the same port can't interleave lines.
+  // Retries because the C3's USB-CDC occasionally drops a write; every command in
+  // the protocol is idempotent, and cmd-matching in _onLine drops the duplicate
+  // reply a retry may produce, so retrying is always safe.
+  request(obj, timeoutMs = 1500, retries = 3) {
+    const run = async () => {
+      let lastErr;
+      for (let i = 0; i < retries; i++) {
+        try { return await this._attempt(obj, timeoutMs); } catch (e) { lastErr = e; }
+      }
+      throw lastErr;
+    };
+    // Run after the previous request settles either way; a rejection must not
+    // poison the chain (that would silently drop every following request).
+    const result = this.chain.then(run, run);
+    this.chain = result.catch(() => {});
+    return result;
+  }
+
+  async close() {
+    this._flush(new Error('closing'));
+    await new Promise((res) => this.port.close(() => res()));
+  }
+}
+
+// A port worth probing: the ESP32-C3 native-USB VID, or a classic USB-UART
+// bridge / native-CDC device path. We still confirm with a ping before trusting it.
+function looksLikeBeaconPort(p) {
+  if ((p.vendorId || '').toLowerCase() === '303a') return true; // Espressif native USB
+  return /usbmodem|usbserial|wchusbserial|ttyACM|ttyUSB/i.test(p.path || '');
+}
+
+async function getBeaconPort(portPath) {
+  let bp = usbPorts.get(portPath);
+  if (bp) return bp;
+  bp = new BeaconPort(portPath);
+  await bp.open();
+  usbPorts.set(portPath, bp);
+  return bp;
+}
+
+async function closeBeaconPort(portPath) {
+  const bp = usbPorts.get(portPath);
+  if (!bp) return;
+  usbPorts.delete(portPath);
+  try { await bp.close(); } catch {}
+}
+
+// Enumerate ports, ping each candidate, and return the beacons that answer. Ports
+// that don't respond are closed again so we don't hog a non-beacon device.
+async function usbScan() {
+  const all = await SerialPort.list();
+  const candidates = all.filter(looksLikeBeaconPort);
+  const results = await Promise.all(candidates.map(async (p) => {
+    try {
+      const bp = await getBeaconPort(p.path);
+      const res = await bp.request({ cmd: 'ping' });
+      if (res && res.type === 'tallywatch') {
+        return { path: p.path, id: res.id, fw: res.fw, name: res.name, label: res.label || '', vendorId: p.vendorId, productId: p.productId };
+      }
+      await closeBeaconPort(p.path); // answered but not one of ours
+      return null;
+    } catch {
+      await closeBeaconPort(p.path); // no/failed response — release it
+      return null;
+    }
+  }));
+  return results.filter(Boolean);
+}
+
+async function usbGetConfig(portPath) {
+  const bp = await getBeaconPort(portPath);
+  const res = await bp.request({ cmd: 'getconfig' });
+  return res.config || {};
+}
+
+async function usbGetAbout(portPath) {
+  const bp = await getBeaconPort(portPath);
+  const res = await bp.request({ cmd: 'getabout' });
+  return res.about || {};
+}
+
+async function usbSave(portPath, config, reboot) {
+  const bp = await getBeaconPort(portPath);
+  const res = await bp.request({ cmd: 'save', config, reboot: !!reboot });
+  if (!res.ok) throw new Error(res.error || 'save failed');
+  if (reboot) await closeBeaconPort(portPath); // it re-enumerates after reboot
+  return true;
+}
+
+async function usbLocate(portPath, on) {
+  const bp = await getBeaconPort(portPath);
+  const res = await bp.request({ cmd: 'locate', on: !!on });
+  return !!res.ok;
+}
+
+async function usbReboot(portPath) {
+  const bp = await getBeaconPort(portPath);
+  await bp.request({ cmd: 'reboot' }).catch(() => {});
+  await closeBeaconPort(portPath);
+  return true;
+}
+
+async function usbCloseAll() {
+  await Promise.all([...usbPorts.keys()].map(closeBeaconPort));
+  return true;
+}
+
 // ---------- IPC ----------
 function registerIpc() {
   ipcMain.handle('discover:start', () => { startDiscovery(); return true; });
@@ -197,6 +375,36 @@ function registerIpc() {
   ipcMain.handle('settings:set', (_e, s) => { saveSettings(s); return true; });
   ipcMain.handle('sys:adapters', () => hostAdapters());
   ipcMain.handle('net:ipInUse', (_e, ip) => ipInUse(ip));
+
+  ipcMain.handle('usb:scan', () => usbScan());
+  ipcMain.handle('usb:getConfig', (_e, p) => usbGetConfig(p));
+  ipcMain.handle('usb:getAbout', (_e, p) => usbGetAbout(p));
+  ipcMain.handle('usb:save', (_e, p, config, reboot) => usbSave(p, config, reboot));
+  ipcMain.handle('usb:locate', (_e, p, on) => usbLocate(p, on));
+  ipcMain.handle('usb:reboot', (_e, p) => usbReboot(p));
+  ipcMain.handle('usb:closeAll', () => usbCloseAll());
+
+  // Import/export a beacon config as a JSON file (the same schema getconfig/save
+  // speak), for batch re-programming a fleet from one saved template.
+  ipcMain.handle('config:export', async (_e, config, suggestedName) => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export beacon config',
+      defaultPath: suggestedName || 'tallywatch-config.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (canceled || !filePath) return false;
+    fs.writeFileSync(filePath, JSON.stringify(config, null, 2));
+    return true;
+  });
+  ipcMain.handle('config:import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Import beacon config',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (canceled || !filePaths[0]) return null;
+    return JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
+  });
 }
 
 // The laptop's usable IPv4 adapters, with netmask — the manager derives beacon
@@ -250,5 +458,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopDiscovery();
+  usbCloseAll();
   if (process.platform !== 'darwin') app.quit();
 });

@@ -61,25 +61,64 @@ inline String signalStrength(int32_t rssi) {
     return "low";
 }
 
-inline void applySettingsFromJson(JsonDocument& doc) {
-    settings.ssid1 = doc["ssid1"] | settings.ssid1;
-    settings.pass1 = doc["pass1"] | settings.pass1;
-    settings.ssid2 = doc["ssid2"] | settings.ssid2;
-    settings.pass2 = doc["pass2"] | settings.pass2;
-    settings.ssid3 = doc["ssid3"] | settings.ssid3;
-    settings.pass3 = doc["pass3"] | settings.pass3;
-    settings.dhcp = doc["dhcp"] | settings.dhcp;
-    settings.static_ip = doc["static_ip"] | settings.static_ip;
-    settings.static_gateway = doc["static_gateway"] | settings.static_gateway;
-    settings.static_subnet = doc["static_subnet"] | settings.static_subnet;
-    settings.static_dns = doc["static_dns"] | settings.static_dns;
-    settings.wifi_indicator = doc["wifi_indicator"] | settings.wifi_indicator;
-    settings.companion_indicator = doc["companion_indicator"] | settings.companion_indicator;
-    settings.setup_indicator = doc["setup_indicator"] | settings.setup_indicator;
-    settings.ultra_bright = doc["ultra_bright"] | settings.ultra_bright;
-    settings.companion_ip = doc["companion_ip"] | settings.companion_ip;
-    settings.companion_port = doc["companion_port"] | settings.companion_port;
-    settings.label = doc["label"] | settings.label;
+// Accepts a JsonVariantConst so it reads from either a flat document (the HTTP
+// /save body) or a nested "config" object (the USB serial save command).
+inline void applySettingsFromJson(JsonVariantConst src) {
+    settings.ssid1 = src["ssid1"] | settings.ssid1;
+    settings.pass1 = src["pass1"] | settings.pass1;
+    settings.ssid2 = src["ssid2"] | settings.ssid2;
+    settings.pass2 = src["pass2"] | settings.pass2;
+    settings.ssid3 = src["ssid3"] | settings.ssid3;
+    settings.pass3 = src["pass3"] | settings.pass3;
+    settings.dhcp = src["dhcp"] | settings.dhcp;
+    settings.static_ip = src["static_ip"] | settings.static_ip;
+    settings.static_gateway = src["static_gateway"] | settings.static_gateway;
+    settings.static_subnet = src["static_subnet"] | settings.static_subnet;
+    settings.static_dns = src["static_dns"] | settings.static_dns;
+    settings.wifi_indicator = src["wifi_indicator"] | settings.wifi_indicator;
+    settings.companion_indicator = src["companion_indicator"] | settings.companion_indicator;
+    settings.setup_indicator = src["setup_indicator"] | settings.setup_indicator;
+    settings.ultra_bright = src["ultra_bright"] | settings.ultra_bright;
+    settings.companion_ip = src["companion_ip"] | settings.companion_ip;
+    settings.companion_port = src["companion_port"] | settings.companion_port;
+    settings.label = src["label"] | settings.label;
+}
+
+// Fills the given object with the full beacon config. Shared by the HTTP
+// /config route and the USB serial getconfig command so both speak the same
+// schema (which is also the import/export format).
+inline void buildConfigJson(JsonObject o) {
+    o["ssid1"] = settings.ssid1; o["pass1"] = settings.pass1;
+    o["ssid2"] = settings.ssid2; o["pass2"] = settings.pass2;
+    o["ssid3"] = settings.ssid3; o["pass3"] = settings.pass3;
+    o["dhcp"] = settings.dhcp;
+    o["static_ip"] = settings.static_ip;
+    o["static_gateway"] = settings.static_gateway;
+    o["static_subnet"] = settings.static_subnet;
+    o["static_dns"] = settings.static_dns;
+    o["wifi_indicator"] = settings.wifi_indicator;
+    o["companion_indicator"] = settings.companion_indicator;
+    o["setup_indicator"] = settings.setup_indicator;
+    o["ultra_bright"] = settings.ultra_bright;
+    o["companion_ip"] = settings.companion_ip;
+    o["companion_port"] = settings.companion_port;
+    o["label"] = settings.label;
+}
+
+// Fills the given object with device identity. Shared by the HTTP /about route
+// and the USB serial getabout command.
+inline void buildAboutJson(JsonObject o) {
+    o["device_id"] = deviceSerial;
+    o["firmware_version"] = FW_VERSION;
+    o["firmware_name"] = FW_CODENAME;
+    int colonIdx = deviceSerial.indexOf(':');
+    o["serial_number"] = colonIdx >= 0 ? deviceSerial.substring(colonIdx + 1) : deviceSerial;
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    o["mac_address"] = macStr;
+    o["hardware_version"] = HARDWARE_VERSION;
 }
 
 inline void handleRoot() {
@@ -89,21 +128,7 @@ inline void handleRoot() {
 
 inline void handleGetConfig() {
     JsonDocument doc;
-    doc["ssid1"] = settings.ssid1; doc["pass1"] = settings.pass1;
-    doc["ssid2"] = settings.ssid2; doc["pass2"] = settings.pass2;
-    doc["ssid3"] = settings.ssid3; doc["pass3"] = settings.pass3;
-    doc["dhcp"] = settings.dhcp;
-    doc["static_ip"] = settings.static_ip;
-    doc["static_gateway"] = settings.static_gateway;
-    doc["static_subnet"] = settings.static_subnet;
-    doc["static_dns"] = settings.static_dns;
-    doc["wifi_indicator"] = settings.wifi_indicator;
-    doc["companion_indicator"] = settings.companion_indicator;
-    doc["setup_indicator"] = settings.setup_indicator;
-    doc["ultra_bright"] = settings.ultra_bright;
-    doc["companion_ip"] = settings.companion_ip;
-    doc["companion_port"] = settings.companion_port;
-    doc["label"] = settings.label;
+    buildConfigJson(doc.to<JsonObject>());
     String out;
     serializeJson(doc, out);
     server.send(200, "application/json", out);
@@ -126,17 +151,7 @@ inline void handleGetWifi() {
 
 inline void handleGetAbout() {
     JsonDocument doc;
-    doc["device_id"] = deviceSerial;
-    doc["firmware_version"] = FW_VERSION;
-    doc["firmware_name"] = FW_CODENAME;
-    int colonIdx = deviceSerial.indexOf(':');
-    doc["serial_number"] = colonIdx >= 0 ? deviceSerial.substring(colonIdx + 1) : deviceSerial;
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    doc["mac_address"] = macStr;
-    doc["hardware_version"] = HARDWARE_VERSION;
+    buildAboutJson(doc.to<JsonObject>());
     String out;
     serializeJson(doc, out);
     server.send(200, "application/json", out);
@@ -150,7 +165,7 @@ inline void handlePostSave() {
         server.send(400, "text/plain", "Bad JSON");
         return;
     }
-    applySettingsFromJson(doc);
+    applySettingsFromJson(doc.as<JsonVariantConst>());
     persistSettings();
     server.send(200, "text/plain", "OK - restarting");
     restartPending = true;

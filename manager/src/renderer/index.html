@@ -229,6 +229,47 @@
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
         .field-help { font-size: 12px; color: var(--text-faint); margin: -8px 0 14px; }
 
+        .modal.wide { max-width: 620px; }
+        .modal.wide .modal-scroll { max-height: 62vh; overflow-y: auto; margin: 0 -6px 4px; padding: 0 6px; }
+
+        /* USB provisioning */
+        .usb-intro { font-size: 13px; color: var(--text-dim); line-height: 1.55; margin: -4px 0 16px; }
+        .usb-list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 6px; }
+        .usb-row {
+            display: grid; grid-template-columns: 34px 1fr auto; gap: 13px; align-items: center;
+            padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--bg-card); cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .usb-row:hover { border-color: var(--rose); background: rgba(244, 63, 94, 0.06); }
+        .usb-dot {
+            width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border-strong);
+            background: #1a1e2b; transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .usb-row:hover .usb-dot { background: var(--rose); box-shadow: 0 0 14px rgba(244, 63, 94, 0.6); }
+        .usb-row-main { min-width: 0; }
+        .usb-row-name { font-size: 15px; font-weight: 700; margin: 0 0 2px; }
+        .usb-row-meta { font-size: 12px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+        .usb-row-meta span { margin-right: 11px; }
+        .usb-row-hint { font-size: 12px; font-weight: 600; color: var(--rose); opacity: 0; transition: opacity 0.15s ease; white-space: nowrap; }
+        .usb-row:hover .usb-row-hint { opacity: 1; }
+        .usb-empty { text-align: center; color: var(--text-faint); padding: 34px 16px; font-size: 14px; line-height: 1.6; }
+
+        /* config form */
+        .form-section { margin: 0 0 6px; }
+        .form-section > h3 {
+            font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+            font-weight: 700; margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+        }
+        .form-section:first-child > h3 { margin-top: 0; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+        .form-row.thirds { grid-template-columns: 1fr 1fr; }
+        .form-full { grid-column: 1 / -1; }
+        .check-row { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; font-size: 13px; color: var(--text); font-weight: 500; }
+        .check-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+        .check-row label { margin: 0; color: var(--text); font-weight: 500; }
+        .modal-actions.split { justify-content: space-between; }
+        .modal-actions .left-group { display: flex; gap: 10px; }
+
         .toast {
             position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 12px);
             background: var(--bg-card); border: 1px solid var(--border-strong);
@@ -248,6 +289,7 @@
         </div>
         <div class="toolbar">
             <span class="fw-pill" id="fw-pill">Firmware: —</span>
+            <button class="btn btn-secondary" id="usb-btn">USB Setup</button>
             <button class="btn btn-secondary" id="check-btn">Check GitHub</button>
             <button class="btn btn-secondary" id="rescan-btn">Rescan</button>
             <button class="btn btn-secondary btn-sm" id="settings-btn">⚙</button>
@@ -317,6 +359,87 @@
         <div class="modal-actions">
             <button class="btn btn-secondary" id="warn-fix">Fix it</button>
             <button class="btn btn-primary" id="warn-continue">Continue anyway</button>
+        </div>
+    </div>
+
+    <div class="modal wide" id="usb-modal">
+        <h2>USB Setup</h2>
+        <p class="usb-intro">Configure beacons over their USB cable — before they're ever on WiFi. Plug one or more in and
+            click Scan. <b style="color:var(--text)">Hover a row to flash that beacon's pixel red</b> so you know which
+            one you're about to edit; click it to open its full configuration.</p>
+        <div class="usb-list" id="usb-list"></div>
+        <div class="usb-empty" id="usb-empty">No beacons scanned yet.</div>
+        <div class="modal-actions split">
+            <div class="left-group">
+                <button class="btn btn-secondary" id="usb-rescan">Scan</button>
+            </div>
+            <button class="btn btn-secondary" onclick="closeUsb()">Close</button>
+        </div>
+    </div>
+
+    <div class="modal wide" id="usb-config-modal" style="z-index:52">
+        <h2 id="usbc-title">Configure Beacon</h2>
+        <div class="modal-scroll">
+            <div class="form-section">
+                <h3>Device</h3>
+                <label>Beacon Name</label>
+                <input type="text" id="usbc-label" placeholder="e.g. Camera 1" spellcheck="false">
+            </div>
+
+            <div class="form-section">
+                <h3>WiFi Networks</h3>
+                <p class="field-help" style="margin-top:0">Up to three, tried in order. Only the first is required.</p>
+                <div class="form-row">
+                    <div><label>Network 1 SSID</label><input type="text" id="usbc-ssid1" spellcheck="false"></div>
+                    <div><label>Password 1</label><input type="text" id="usbc-pass1" spellcheck="false"></div>
+                    <div><label>Network 2 SSID</label><input type="text" id="usbc-ssid2" spellcheck="false"></div>
+                    <div><label>Password 2</label><input type="text" id="usbc-pass2" spellcheck="false"></div>
+                    <div><label>Network 3 SSID</label><input type="text" id="usbc-ssid3" spellcheck="false"></div>
+                    <div><label>Password 3</label><input type="text" id="usbc-pass3" spellcheck="false"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Network Address</h3>
+                <div class="check-row">
+                    <input type="checkbox" id="usbc-dhcp"><label for="usbc-dhcp">Use DHCP (automatic address)</label>
+                </div>
+                <div id="usbc-static">
+                    <div class="form-row">
+                        <div><label>IP Address</label><input type="text" id="usbc-ip" placeholder="192.168.10.20" inputmode="decimal"></div>
+                        <div><label>Gateway</label><input type="text" id="usbc-gateway" placeholder="192.168.10.1" inputmode="decimal"></div>
+                        <div><label>Subnet Mask</label><input type="text" id="usbc-subnet" placeholder="255.255.255.0" inputmode="decimal"></div>
+                        <div><label>DNS</label><input type="text" id="usbc-dns" placeholder="192.168.10.1" inputmode="decimal"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Companion</h3>
+                <div class="form-row">
+                    <div><label>Companion IP</label><input type="text" id="usbc-cip" placeholder="192.168.10.69" inputmode="decimal"></div>
+                    <div><label>Port</label><input type="text" id="usbc-cport" placeholder="16622" inputmode="numeric"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Status Light</h3>
+                <div class="check-row"><input type="checkbox" id="usbc-ind-wifi"><label for="usbc-ind-wifi">Show WiFi‑connecting indicator (blue)</label></div>
+                <div class="check-row"><input type="checkbox" id="usbc-ind-comp"><label for="usbc-ind-comp">Show Companion‑connecting indicator (red)</label></div>
+                <div class="check-row"><input type="checkbox" id="usbc-ind-setup"><label for="usbc-ind-setup">Show setup‑mode indicator (green)</label></div>
+                <div class="check-row"><input type="checkbox" id="usbc-ultra"><label for="usbc-ultra">Ultra Bright (max brightness on the live color)</label></div>
+            </div>
+        </div>
+        <div class="modal-actions split">
+            <div class="left-group">
+                <button class="btn btn-secondary" id="usbc-import">Import…</button>
+                <button class="btn btn-secondary" id="usbc-export">Export…</button>
+            </div>
+            <div class="left-group">
+                <button class="btn btn-secondary" onclick="closeUsbConfig()">Cancel</button>
+                <button class="btn btn-secondary" id="usbc-save">Save</button>
+                <button class="btn btn-primary" id="usbc-save-reboot">Save &amp; Reboot</button>
+            </div>
         </div>
     </div>
 

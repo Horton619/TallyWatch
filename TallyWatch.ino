@@ -131,6 +131,12 @@ String lastColorHex = "#000000";    // last color Companion pushed (for /status 
 unsigned long identifyUntil = 0;    // while > millis(), the LED runs the locate-me blink
 bool wasIdentifying = false;
 
+// USB provisioning "locate": while true the pixel holds solid RED, overriding
+// every other LED state, so a user configuring over USB can tell which of
+// several plugged-in beacons they've selected (hover-to-locate in Lightkeeper).
+bool locateActive = false;
+bool wasLocating = false;
+
 // ---------------- Networking / protocol state ----------------
 WiFiClient client;
 unsigned long lastPingSent = 0;
@@ -167,6 +173,7 @@ void breatheStep(uint8_t r, uint8_t g, uint8_t b) {
 // Shows the breathing status color only if its indicator toggle is on;
 // otherwise the LED stays dark for that state.
 void indicatorStep(const String& enabled, uint8_t r, uint8_t g, uint8_t b) {
+  if (locateActive) { showSolid(255, 0, 0); return; } // USB locate overrides all status colors
   if (enabled == "1") breatheStep(r, g, b);
   else showSolid(0, 0, 0);
 }
@@ -252,6 +259,7 @@ void enterSetupMode() {
 
   while (true) {
     server.handleClient();
+    handleSerial(); // USB provisioning works in setup mode too (no creds yet)
     indicatorStep(settings.setup_indicator, 0, 180, 0);
 
     if (restartPending && millis() > restartAtMs) ESP.restart();
@@ -317,6 +325,8 @@ bool tryConnectSTA(const String& ssid, const String& pass, unsigned long timeout
       return false;
     }
     checkBootButton();
+    handleSerial(); // keep USB provisioning alive while (re)joining WiFi
+    if (restartPending && millis() > restartAtMs) ESP.restart(); // e.g. serial save+reboot
     indicatorStep(settings.wifi_indicator, 0, 0, 255);
     delay(20);
   }
@@ -334,8 +344,11 @@ void connectWiFi() {
   for (int i = 0; i < 3; i++) {
     if (tryConnectSTA(ssids[i], passes[i], 8000)) return;
   }
-  delay(500); // all saved networks failed; reboot and try the whole list again
-  ESP.restart();
+  // All saved networks failed. Return so loop() retries the whole list -- we
+  // deliberately do NOT reboot here: on a provisioning bench (no Tally AP in
+  // range) a reboot would drop the USB-CDC port every ~24s and make Lightkeeper
+  // provisioning impossible. tryConnectSTA already pumps handleSerial() and the
+  // BOOT button throughout each attempt, so the unit stays responsive.
 }
 
 // ================= Companion Satellite protocol =================
@@ -362,6 +375,7 @@ String getArg(const String& line, const String& key) {
 
 void applyColorHex(const String& hex) {
   lastColorHex = hex;
+  if (locateActive) return;             // don't paint over the USB locate red
   if (identifyUntil > millis()) return; // don't disturb a locate-me blink in progress
   if (hex.length() >= 7 && hex[0] == '#') {
     long val = strtol(hex.substring(1).c_str(), NULL, 16);
@@ -447,6 +461,87 @@ void connectToCompanion() {
   }
 }
 
+// ================= USB serial provisioning =================
+// A line-delimited JSON command protocol over the native USB-CDC port, so
+// Lightkeeper can identify and configure a beacon over the wire before it's
+// ever joined WiFi (the chicken-and-egg a network-only manager can't solve).
+// One JSON object per line in, one JSON object per line out. handleSerial() is
+// pumped from every loop we can block in (main, WiFi-connect, setup mode) so it
+// answers regardless of network state. The config schema matches the web
+// setup page exactly -- so a getconfig dump is a valid save/import payload.
+String serialRxBuffer;
+
+void sendSerialJson(JsonDocument& doc) {
+  String out;
+  serializeJson(doc, out);
+  Serial.println(out);
+}
+
+void handleSerialCommand(const String& line) {
+  JsonDocument req;
+  if (deserializeJson(req, line)) return; // ignore boot chatter / non-JSON noise
+  String cmd = req["cmd"] | "";
+  if (cmd.length() == 0) return;
+
+  JsonDocument res;
+  res["ok"] = true;
+  res["cmd"] = cmd;
+
+  if (cmd == "ping") {
+    // The "type" marker is how Lightkeeper confirms a serial port is a beacon.
+    res["type"] = "tallywatch";
+    res["id"] = deviceSerial;
+    res["fw"] = FW_VERSION;
+    res["name"] = FW_CODENAME;
+    res["label"] = settings.label;
+  } else if (cmd == "getconfig") {
+    buildConfigJson(res["config"].to<JsonObject>());
+  } else if (cmd == "getabout") {
+    buildAboutJson(res["about"].to<JsonObject>());
+  } else if (cmd == "save") {
+    if (req["config"].is<JsonObject>()) {
+      applySettingsFromJson(req["config"]);
+      persistSettings();
+      if (req["reboot"] | false) {
+        restartPending = true;
+        restartAtMs = millis() + 300;
+      }
+    } else {
+      res["ok"] = false;
+      res["error"] = "missing config";
+    }
+  } else if (cmd == "locate") {
+    bool on = req["on"] | false;
+    if (on) {
+      locateActive = true;
+      wasLocating = true;
+    } else {
+      locateActive = false; // loop() restores the mirrored color via wasLocating
+    }
+  } else if (cmd == "reboot") {
+    restartPending = true;
+    restartAtMs = millis() + 300;
+  } else {
+    res["ok"] = false;
+    res["error"] = "unknown cmd";
+  }
+
+  sendSerialJson(res);
+}
+
+void handleSerial() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      handleSerialCommand(serialRxBuffer);
+      serialRxBuffer = "";
+    } else if (c != '\r') {
+      serialRxBuffer += c;
+      if (serialRxBuffer.length() > 2048) serialRxBuffer = ""; // guard a runaway line
+    }
+  }
+}
+
 // ================= Setup / loop =================
 String macSerial() {
   uint8_t mac[6];
@@ -497,6 +592,7 @@ void setup() {
 
 void loop() {
   checkBootButton();
+  handleSerial(); // USB provisioning is always live
 
   if (WiFi.status() != WL_CONNECTED) {
     servicesStarted = false; // rebuild mDNS/server after a reconnect
@@ -513,8 +609,14 @@ void loop() {
 
   if (restartPending && millis() > restartAtMs) ESP.restart(); // e.g. after an OTA
 
-  // Locate-me blink overrides the mirrored color while active.
-  if (identifyUntil > millis()) {
+  // USB locate (solid red) and the WiFi identify blink both override the
+  // mirrored color while active; locate wins if somehow both are on.
+  if (locateActive) {
+    showSolid(255, 0, 0);
+  } else if (wasLocating) {
+    wasLocating = false;
+    restoreLastColor();
+  } else if (identifyUntil > millis()) {
     identifyBlinkStep();
   } else if (wasIdentifying) {
     wasIdentifying = false;

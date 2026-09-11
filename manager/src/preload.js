@@ -23,4 +23,15 @@ contextBridge.exposeInMainWorld('tallywatch', {
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),
   adapters: () => ipcRenderer.invoke('sys:adapters'),
   ipInUse: (ip) => ipcRenderer.invoke('net:ipInUse', ip),
+
+  // USB provisioning (serial)
+  usbScan: () => ipcRenderer.invoke('usb:scan'),
+  usbGetConfig: (path) => ipcRenderer.invoke('usb:getConfig', path),
+  usbGetAbout: (path) => ipcRenderer.invoke('usb:getAbout', path),
+  usbSave: (path, config, reboot) => ipcRenderer.invoke('usb:save', path, config, reboot),
+  usbLocate: (path, on) => ipcRenderer.invoke('usb:locate', path, on),
+  usbReboot: (path) => ipcRenderer.invoke('usb:reboot', path),
+  usbCloseAll: () => ipcRenderer.invoke('usb:closeAll'),
+  exportConfig: (config, suggestedName) => ipcRenderer.invoke('config:export', config, suggestedName),
+  importConfig: () => ipcRenderer.invoke('config:import'),
 });

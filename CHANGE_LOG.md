@@ -2,6 +2,26 @@
 
 ## Unreleased — WiFi update + fleet management
 
+- **USB provisioning in Lightkeeper** — configure a beacon over its USB cable
+  before it's ever on WiFi (solves the chicken-and-egg where a network-only
+  manager can't reach an unconfigured beacon). New **USB Setup** panel scans for
+  plugged-in beacons and lists each one; **hovering a row flashes that beacon's
+  pixel red** so you can tell which physical unit you're about to edit when
+  several are plugged into one machine. Clicking a row opens a full config editor
+  mirroring the setup page (name, 3 WiFi networks, DHCP/static IP, Companion
+  IP/port, indicators, Ultra Bright) with **Import/Export** of the same JSON the
+  web page uses — for batch re-programming a fleet from one saved template.
+  - Firmware: a line-delimited JSON command protocol over the native USB-CDC port
+    (`ping`/`getconfig`/`getabout`/`save`/`locate`/`reboot`), pumped from every
+    loop (normal, WiFi-connect, setup mode) so it answers regardless of network
+    state. `connectWiFi()` no longer reboots when no saved network is reachable —
+    that used to drop the USB port every ~24 s and made bench provisioning
+    impossible. A `locate` command holds the pixel solid red (hover-to-identify).
+  - Manager: node `serialport` (N-API prebuilds, so no native rebuild on the
+    Windows CI). Robust framing — per-port command serialization, reply matching
+    by echoed `cmd`, and retries (the C3's USB-CDC occasionally drops a write;
+    every command is idempotent so retrying is safe). Verified on hardware:
+    10× full ping→getconfig→save→verify→locate round-trips, zero failures.
 - **Manager renamed "Lightkeeper"** with an emerald-lighthouse app icon
   (`manager/build/icon.svg`/`.png`) — the guiding light that tends the fleet.
   Product name, app id, window title, and docs updated.

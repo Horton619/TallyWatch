@@ -8,6 +8,9 @@ const state = {
   beacons: new Map(),  // ip -> { ip, id, fw, ...status }
   latest: null,        // { version, asset } from GitHub
   renameIp: null,
+  usb: [],             // [{ path, id, fw, label, ... }] plugged-in beacons
+  usbPort: null,       // path of the beacon currently open in the config editor
+  usbHover: null,      // path currently flashing red on hover
 };
 
 // ---------- lifecycle ----------
@@ -348,6 +351,180 @@ function wireUi() {
   document.getElementById('ip-save').onclick = saveIp;
   document.getElementById('ip-dhcp').onchange = toggleIpFields;
   document.getElementById('warn-fix').onclick = hideWarn; // back to the IP modal to edit
+
+  document.getElementById('usb-btn').onclick = openUsb;
+  document.getElementById('usb-rescan').onclick = usbScan;
+  document.getElementById('usbc-dhcp').onchange = toggleUsbStatic;
+  document.getElementById('usbc-save').onclick = () => saveUsbConfig(false);
+  document.getElementById('usbc-save-reboot').onclick = () => saveUsbConfig(true);
+  document.getElementById('usbc-import').onclick = importUsbConfig;
+  document.getElementById('usbc-export').onclick = exportUsbConfig;
+}
+
+// ---------- USB provisioning ----------
+async function openUsb() {
+  showModal('usb-modal');
+  await usbScan();
+}
+
+async function usbScan() {
+  const btn = document.getElementById('usb-rescan');
+  btn.disabled = true; btn.textContent = 'Scanning…';
+  try {
+    state.usb = (await API.usbScan()) || [];
+  } catch (e) {
+    state.usb = [];
+    toast('USB scan failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Scan';
+  }
+  renderUsbList();
+}
+
+function renderUsbList() {
+  const list = document.getElementById('usb-list');
+  const empty = document.getElementById('usb-empty');
+  list.innerHTML = '';
+  if (!state.usb.length) {
+    empty.style.display = 'block';
+    empty.innerHTML = 'No beacons detected.<br>Plug a beacon into USB and click <b>Scan</b>.';
+    return;
+  }
+  empty.style.display = 'none';
+
+  for (const d of state.usb) {
+    const row = document.createElement('div');
+    row.className = 'usb-row';
+    row.dataset.path = d.path;
+    const shortId = (d.id || '').replace(/^TallyWatch:/, '');
+    row.innerHTML = `
+      <div class="usb-dot"></div>
+      <div class="usb-row-main">
+        <p class="usb-row-name">${escHtml(d.label || 'Unnamed beacon')}</p>
+        <p class="usb-row-meta"><span>${escHtml(shortId || d.path)}</span><span>fw v${escHtml(d.fw || '?')}</span></p>
+      </div>
+      <span class="usb-row-hint">● locating — click to configure</span>`;
+    row.onmouseenter = () => usbHover(d.path, true);
+    row.onmouseleave = () => usbHover(d.path, false);
+    row.onclick = () => openUsbConfig(d);
+    list.appendChild(row);
+  }
+}
+
+// Flash the hovered beacon's pixel red so the user can tell which physical unit
+// a row refers to when several are plugged in.
+async function usbHover(path, on) {
+  if (on) state.usbHover = path;
+  else if (state.usbHover === path) state.usbHover = null;
+  try { await API.usbLocate(path, on); } catch {}
+}
+
+async function openUsbConfig(d) {
+  state.usbPort = d.path;
+  // Turn off the hover locate before we enter the editor.
+  if (state.usbHover) { try { await API.usbLocate(state.usbHover, false); } catch {} state.usbHover = null; }
+  let cfg;
+  try {
+    cfg = await API.usbGetConfig(d.path);
+  } catch (e) { toast('Could not read config: ' + e.message, true); return; }
+  document.getElementById('usbc-title').textContent = `Configure — ${d.label || d.id || 'Beacon'}`;
+  fillUsbForm(cfg);
+  showModal('usb-config-modal');
+}
+
+const USB_FIELDS = {
+  label: 'usbc-label',
+  ssid1: 'usbc-ssid1', pass1: 'usbc-pass1',
+  ssid2: 'usbc-ssid2', pass2: 'usbc-pass2',
+  ssid3: 'usbc-ssid3', pass3: 'usbc-pass3',
+  static_ip: 'usbc-ip', static_gateway: 'usbc-gateway', static_subnet: 'usbc-subnet', static_dns: 'usbc-dns',
+  companion_ip: 'usbc-cip', companion_port: 'usbc-cport',
+};
+const USB_CHECKS = {
+  wifi_indicator: 'usbc-ind-wifi',
+  companion_indicator: 'usbc-ind-comp',
+  setup_indicator: 'usbc-ind-setup',
+  ultra_bright: 'usbc-ultra',
+};
+
+function fillUsbForm(cfg) {
+  for (const [key, id] of Object.entries(USB_FIELDS)) {
+    document.getElementById(id).value = cfg[key] != null ? cfg[key] : '';
+  }
+  for (const [key, id] of Object.entries(USB_CHECKS)) {
+    document.getElementById(id).checked = cfg[key] === '1';
+  }
+  document.getElementById('usbc-dhcp').checked = (cfg.dhcp == null ? '1' : cfg.dhcp) === '1';
+  toggleUsbStatic();
+}
+
+function readUsbForm() {
+  const out = {};
+  for (const [key, id] of Object.entries(USB_FIELDS)) out[key] = document.getElementById(id).value.trim();
+  for (const [key, id] of Object.entries(USB_CHECKS)) out[key] = document.getElementById(id).checked ? '1' : '0';
+  out.dhcp = document.getElementById('usbc-dhcp').checked ? '1' : '0';
+  return out;
+}
+
+function toggleUsbStatic() {
+  const on = document.getElementById('usbc-dhcp').checked;
+  const box = document.getElementById('usbc-static');
+  box.style.opacity = on ? '0.4' : '1';
+  box.style.pointerEvents = on ? 'none' : 'auto';
+}
+
+async function saveUsbConfig(reboot) {
+  const port = state.usbPort;
+  const cfg = readUsbForm();
+  if (cfg.dhcp === '0' && !isValidIp(cfg.static_ip)) {
+    toast('Enter a valid static IP, or switch on DHCP.', true); return;
+  }
+  const ids = ['usbc-save', 'usbc-save-reboot'];
+  ids.forEach((i) => document.getElementById(i).disabled = true);
+  try {
+    await API.usbSave(port, cfg, reboot);
+    toast(reboot ? 'Saved — beacon rebooting.' : 'Saved to beacon.');
+    closeUsbConfig();
+    if (reboot) {
+      // it drops off USB while it reboots; drop it from the list
+      state.usb = state.usb.filter((d) => d.path !== port);
+      renderUsbList();
+    }
+  } catch (e) {
+    toast('Save failed: ' + e.message, true);
+  } finally {
+    ids.forEach((i) => document.getElementById(i).disabled = false);
+  }
+}
+
+async function exportUsbConfig() {
+  const cfg = readUsbForm();
+  const name = (cfg.label || 'beacon').replace(/[^\w.-]+/g, '_').toLowerCase();
+  try {
+    const ok = await API.exportConfig(cfg, `tallywatch-${name}.json`);
+    if (ok) toast('Config exported.');
+  } catch (e) { toast('Export failed: ' + e.message, true); }
+}
+
+async function importUsbConfig() {
+  try {
+    const cfg = await API.importConfig();
+    if (!cfg) return; // cancelled
+    fillUsbForm(cfg);
+    toast('Config imported — review, then Save.');
+  } catch (e) { toast('Import failed: ' + e.message, true); }
+}
+
+function closeUsbConfig() {
+  document.getElementById('usb-config-modal').style.display = 'none';
+  state.usbPort = null;
+}
+
+async function closeUsb() {
+  closeUsbConfig();
+  closeModals();
+  state.usb = [];
+  try { await API.usbCloseAll(); } catch {} // release ports + clear any locate
 }
 
 async function openSettings() {
@@ -447,6 +624,11 @@ function closeModals(e) {
   if (e && e.target && e.target.id !== 'overlay') return;
   document.getElementById('overlay').style.display = 'none';
   document.querySelectorAll('.modal').forEach((m) => m.style.display = 'none');
+  // If a USB session was open, release the serial ports (also clears any locate).
+  if (state.usb.length || state.usbPort) {
+    state.usb = []; state.usbPort = null; state.usbHover = null;
+    try { API.usbCloseAll(); } catch {}
+  }
 }
 
 // ---------- utils ----------
@@ -491,6 +673,23 @@ function makeMock() {
       { name: 'en1 (Wi-Fi)', address: '192.168.1.10', netmask: '255.255.255.0', cidr: '192.168.1.10/24' },
     ]),
     ipInUse: async (ip) => ip === '10.0.0.99',
+    usbScan: async () => ([
+      { path: '/dev/tty.usbmodem2101', id: 'TallyWatch:AABBCC112233', fw: '1.0.0', label: 'Camera 1' },
+      { path: '/dev/tty.usbmodem2103', id: 'TallyWatch:DDEEFF445566', fw: '1.0.0', label: '' },
+    ]),
+    usbGetConfig: async () => ({
+      ssid1: 'Show-Net', pass1: 'demo-password', ssid2: '', pass2: '', ssid3: '', pass3: '',
+      dhcp: '1', static_ip: '', static_gateway: '', static_subnet: '255.255.255.0', static_dns: '',
+      wifi_indicator: '1', companion_indicator: '1', setup_indicator: '1', ultra_bright: '0',
+      companion_ip: '192.168.10.50', companion_port: '16622', label: 'Camera 1',
+    }),
+    usbGetAbout: async () => ({ device_id: 'TallyWatch:AABBCC112233', firmware_version: '1.0.0', mac_address: '70:AF:09:21:D5:64' }),
+    usbSave: async () => true,
+    usbLocate: async () => true,
+    usbReboot: async () => true,
+    usbCloseAll: async () => true,
+    exportConfig: async () => true,
+    importConfig: async () => null,
   };
 }
 
