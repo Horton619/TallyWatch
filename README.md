@@ -125,6 +125,42 @@ operation, so you can update them without USB:
 Firmware releases are built by CI (`.github/workflows/release-firmware.yml`) — push a
 `vX.Y.Z` tag and the `.bin` is attached to a GitHub Release.
 
+## Provisioning a beacon over USB
+
+Before a beacon is on WiFi, configure it over its USB cable from Lightkeeper:
+**USB Setup → Scan**, then hover a row to flash that beacon's pixel **red** (so you
+can tell which physical unit you're editing when several are plugged in) and click it
+to open the full config editor. Import/Export uses the same JSON as the web setup
+page, so one saved config can batch-program a whole fleet.
+
+## Releasing
+
+Two independent release pipelines, each triggered by a tag:
+
+| Tag pattern | Workflow | Builds | Consumed by |
+|---|---|---|---|
+| `vX.Y.Z` (e.g. `v1.0.1`) | `release-firmware.yml` | ESP32 `.bin` (version stamped from the tag) | Lightkeeper's OTA / update check |
+| `manager-vX.Y.Z` | `release-manager.yml` | Windows `.exe` + signed/notarized macOS `.dmg` | People installing Lightkeeper |
+
+```sh
+# firmware
+git tag v1.0.1 && git push origin v1.0.1
+# desktop app (bump manager/package.json "version" first — the .dmg/.exe name
+# comes from it, not the tag)
+git tag manager-v1.1.0 && git push origin manager-v1.1.0
+```
+
+Both firmware build paths (CI, `manager/tools/bundle-firmware.sh`) and `tools/flash.sh`
+compile with the `esp32:esp32:esp32c3:CDCOnBoot=cdc` FQBN — the `CDCOnBoot=cdc` flag is
+compile-time and is what routes `Serial` to the native USB port, so USB provisioning
+works on every build.
+
+**macOS signing** reuses the VEP Developer ID (team `L5KZ5KGKXC`) via five repo Actions
+secrets: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
+`APPLE_TEAM_ID`. `serialport` is a native module but ships N-API prebuilds, so the build
+config sets `npmRebuild: false` — electron-builder packages the prebuilt binary instead
+of rebuilding from source.
+
 ## Known limitations
 
 - Single LED by default — bump `LED_COUNT` in `TallyWatch.ino` and wire a small ring
