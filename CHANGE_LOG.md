@@ -30,6 +30,13 @@
     state. `connectWiFi()` no longer reboots when no saved network is reachable —
     that used to drop the USB port every ~24 s and made bench provisioning
     impossible. A `locate` command holds the pixel solid red (hover-to-identify).
+  - Firmware, provisioning reliability: while a beacon is actively talked to over
+    USB, it drops into a **radio-off mode** — WiFi/Companion connect attempts each
+    block the single-core loop for ~a second, and NVS writes stall while the radio
+    is up, so on a bench (away from the show network) those stalls made `save`
+    time out. It now pauses the radio during a USB session, acks a `save` before
+    persisting, and `Serial.flush()`es each reply (HWCDC otherwise holds TX until
+    nudged). Verified on hardware: 10 back-to-back saves under a second each.
   - Manager: node `serialport` (N-API prebuilds, so no native rebuild on the
     Windows CI). Robust framing — per-port command serialization, reply matching
     by echoed `cmd`, and retries (the C3's USB-CDC occasionally drops a write;
