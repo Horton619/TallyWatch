@@ -583,13 +583,17 @@ void setup() {
   prefs.begin("tally", false);
   loadSettings();
 
-  // Stable per-device ID, derived once from the eFuse MAC. Regenerate it when
-  // it's missing OR when it's the all-zero id an older firmware persisted (that
-  // build read the MAC via WiFi.macAddress() before WiFi was up and got zeros
-  // on core v3) -- otherwise a fleet flashed with that build stays stuck all
-  // sharing "TallyWatch:000000000000" and Companion only shows one beacon.
+  // Stable per-device id, derived once from the eFuse MAC. Regenerate it when
+  // it's missing OR bogus. Older firmware read the MAC via WiFi.macAddress()
+  // before WiFi was up; arduino-esp32 core v3 hands back a zero-OUI address
+  // there (00:00:00:..) instead of the eFuse MAC, so a whole fleet ends up
+  // sharing one id like "TallyWatch:000000xxxxxx" and Companion, which routes
+  // surfaces by DEVICEID/SERIAL, shows only one beacon. A real NIC never has a
+  // zero OUI (first three bytes 00:00:00), so that prefix is the bug's
+  // fingerprint -- match it, not one exact string, and re-derive from eFuse.
+  // Units already in the field self-heal on the next boot after this update.
   deviceSerial = prefs.getString("serial", "");
-  if (deviceSerial.length() == 0 || deviceSerial == "TallyWatch:000000000000") {
+  if (deviceSerial.length() == 0 || deviceSerial.startsWith("TallyWatch:000000")) {
     deviceSerial = macSerial();
     prefs.putString("serial", deviceSerial);
   }
