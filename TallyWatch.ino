@@ -138,6 +138,14 @@ bool wasIdentifying = false;
 bool locateActive = false;
 bool wasLocating = false;
 
+// While a beacon can't reach its WiFi (e.g. being provisioned on a bench, away
+// from the show network), the radio's connect attempts starve the main loop for
+// seconds at a time -- which stalls USB serial provisioning. So when we've heard
+// from the host over USB recently, we pause WiFi attempts and stay responsive.
+unsigned long lastSerialActivityMs = 0;
+bool wifiPausedForSerial = false;
+const unsigned long SERIAL_WIFI_PAUSE_MS = 30000;
+
 // ---------------- Networking / protocol state ----------------
 WiFiClient client;
 unsigned long lastPingSent = 0;
@@ -327,6 +335,13 @@ bool tryConnectSTA(const String& ssid, const String& pass, unsigned long timeout
     }
     checkBootButton();
     handleSerial(); // keep USB provisioning alive while (re)joining WiFi
+    // A WiFi association attempt starves this loop for seconds at a time. If the
+    // host just started talking to us over USB, bail out now so loop() can drop
+    // into its responsive, radio-off provisioning pause instead of churning.
+    if (lastSerialActivityMs != 0 && millis() - lastSerialActivityMs < SERIAL_WIFI_PAUSE_MS) {
+      WiFi.disconnect(true);
+      return false;
+    }
     if (restartPending && millis() > restartAtMs) ESP.restart(); // e.g. serial save+reboot
     indicatorStep(settings.wifi_indicator, 0, 0, 255);
     delay(20);
@@ -339,6 +354,7 @@ bool tryConnectSTA(const String& ssid, const String& pass, unsigned long timeout
 // setup() routes straight to enterSetupMode() otherwise.
 void connectWiFi() {
   phase = PHASE_WIFI;
+  WiFi.mode(WIFI_STA); // recover if a USB provisioning session left the radio off
   String ssids[3]  = { settings.ssid1, settings.ssid2, settings.ssid3 };
   String passes[3] = { settings.pass1, settings.pass2, settings.pass3 };
 
@@ -476,6 +492,7 @@ void sendSerialJson(JsonDocument& doc) {
   String out;
   serializeJson(doc, out);
   Serial.println(out);
+  Serial.flush(); // HWCDC buffers TX and won't send until nudged; push it out now
 }
 
 void handleSerialCommand(const String& line) {
@@ -502,11 +519,17 @@ void handleSerialCommand(const String& line) {
   } else if (cmd == "save") {
     if (req["config"].is<JsonObject>()) {
       applySettingsFromJson(req["config"]);
+      // Acknowledge BEFORE persisting: NVS/flash writes can stall for a second
+      // or more while the WiFi radio is mid-connect (e.g. hunting for an absent
+      // network during provisioning), which would blow the host's serial
+      // timeout. Settings are already applied in RAM, so the ack is truthful.
+      sendSerialJson(res);
       persistSettings();
       if (req["reboot"] | false) {
         restartPending = true;
         restartAtMs = millis() + 300;
       }
+      return;
     } else {
       res["ok"] = false;
       res["error"] = "missing config";
@@ -531,6 +554,7 @@ void handleSerialCommand(const String& line) {
 }
 
 void handleSerial() {
+  if (Serial.available()) lastSerialActivityMs = millis(); // any inbound byte = active USB session
   while (Serial.available()) {
     char c = Serial.read();
     if (c == '\n') {
@@ -574,6 +598,10 @@ void startNetServices() {
 }
 
 void setup() {
+  // A full-config save command is ~350 bytes; the USB-CDC RX buffer defaults to
+  // 256, so without this the tail (and newline) of a big command is dropped and
+  // it never parses. Must be set before begin().
+  Serial.setRxBufferSize(1024);
   Serial.begin(115200);
   strip.begin();
   showSolid(0, 0, 0);
@@ -608,9 +636,30 @@ void loop() {
   checkBootButton();
   handleSerial(); // USB provisioning is always live
 
+  // While actively being provisioned over USB, run radio-off and skip all
+  // networking. Otherwise the loop gets wrecked three ways: WiFi connect attempts
+  // and Companion connects each block it for ~a second, and NVS/flash writes
+  // stall while the radio is up -- any of which breaks the serial session. Normal
+  // operation resumes once the host has been quiet for SERIAL_WIFI_PAUSE_MS.
+  if (lastSerialActivityMs != 0 && millis() - lastSerialActivityMs < SERIAL_WIFI_PAUSE_MS) {
+    if (!wifiPausedForSerial) {
+      client.stop();
+      WiFi.disconnect(true);
+      WiFi.mode(WIFI_OFF);
+      servicesStarted = false;
+      wifiPausedForSerial = true;
+    }
+    if (restartPending && millis() > restartAtMs) ESP.restart();
+    if (locateActive) showSolid(255, 0, 0);          // hover-to-identify still works
+    else indicatorStep(settings.wifi_indicator, 0, 0, 255);
+    delay(5);
+    return;
+  }
+  wifiPausedForSerial = false;
+
   if (WiFi.status() != WL_CONNECTED) {
     servicesStarted = false; // rebuild mDNS/server after a reconnect
-    connectWiFi(); // blocks until connected or reboots
+    connectWiFi(); // blocks until connected or returns to retry
     return;
   }
 
