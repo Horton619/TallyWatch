@@ -51,7 +51,6 @@ extern WiFiClient client;
 extern bool deviceRegistered;
 extern String lastColorHex;
 extern unsigned long identifyUntil;
-extern bool wasIdentifying;
 
 void persistSettings(); // defined in TallyWatch.ino
 
@@ -227,7 +226,6 @@ inline void handleSetLabel() {
 // Flash the LED so an operator can physically find this unit.
 inline void handleIdentify() {
     identifyUntil = millis() + 5000;
-    wasIdentifying = true;
     server.send(200, "text/plain", "OK");
 }
 
