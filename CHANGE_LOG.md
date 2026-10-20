@@ -2,6 +2,17 @@
 
 ## Unreleased — WiFi update + fleet management
 
+- **Link-loss ride-through (hold last color).** A beacon no longer strobes red
+  every time WiFi/Companion blips — on a congested network (e.g. a packed room
+  full of 2.4 GHz devices) that flicker defeats the whole point of a tally light.
+  A new central LED authority (`updateStatusLed`) holds the last known tally
+  color for a grace window (`LINK_HOLD_MS`, 10 s) after the last good sync, and
+  only falls back to the breathing red/blue "reconnecting" indicator if the
+  outage is sustained. On reconnect Companion re-sends the current color, so a
+  stale hold self-corrects within seconds. Also forces a fresh Companion socket
+  the moment WiFi re-associates (no waiting out the RX timeout on a dead socket),
+  and the mirrored RGB is cached (parsed once) rather than re-parsed each loop.
+
 - **Fix: multiple beacons collapsing to one surface in Companion.** The stable
   device id was derived from `WiFi.macAddress()`, but that's called in `setup()`
   before WiFi is initialized — and arduino-esp32 core v3 dropped the eFuse

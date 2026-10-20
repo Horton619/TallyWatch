@@ -129,14 +129,23 @@ bool servicesStarted = false;  // mDNS + HTTP started once WiFi is up
 
 // ---------------- Live status / management ----------------
 String lastColorHex = "#000000";    // last color Companion pushed (for /status + identify restore)
+uint8_t lastR = 0, lastG = 0, lastB = 0; // parsed-once cache of lastColorHex, re-shown while holding
 unsigned long identifyUntil = 0;    // while > millis(), the LED runs the locate-me blink
-bool wasIdentifying = false;
+
+// Link-loss ride-through: a tally light that briefly loses WiFi/Companion should
+// keep showing its last known state, not strobe red every time a flaky link
+// blips -- that just defeats its purpose. Hold the last color for this long after
+// the last good sync; only a sustained outage falls back to the red/blue
+// "reconnecting" indicator. On reconnect Companion re-sends the current color, so
+// a stale hold self-corrects within seconds.
+unsigned long lastLinkOkMs = 0;     // last millis() we were fully synced with Companion
+bool haveValidColor = false;        // don't hold a blank color before the first sync
+const unsigned long LINK_HOLD_MS = 10000;
 
 // USB provisioning "locate": while true the pixel holds solid RED, overriding
 // every other LED state, so a user configuring over USB can tell which of
 // several plugged-in beacons they've selected (hover-to-locate in Lightkeeper).
 bool locateActive = false;
-bool wasLocating = false;
 
 // While a beacon can't reach its WiFi (e.g. being provisioned on a bench, away
 // from the show network), the radio's connect attempts starve the main loop for
@@ -204,11 +213,6 @@ void identifyBlinkStep() {
   else showSolid(0, 0, 0);
 }
 
-// Re-apply the last Companion color (used when an identify blink ends).
-void applyColorHex(const String& hex); // fwd decl
-void restoreLastColor() {
-  applyColorHex(lastColorHex);
-}
 
 // ================= Settings persistence =================
 void loadSettings() {
@@ -343,7 +347,7 @@ bool tryConnectSTA(const String& ssid, const String& pass, unsigned long timeout
       return false;
     }
     if (restartPending && millis() > restartAtMs) ESP.restart(); // e.g. serial save+reboot
-    indicatorStep(settings.wifi_indicator, 0, 0, 255);
+    updateStatusLed(); // hold last color through a brief re-associate; blue only if sustained
     delay(20);
   }
   return true;
@@ -392,17 +396,54 @@ String getArg(const String& line, const String& key) {
 
 void applyColorHex(const String& hex) {
   lastColorHex = hex;
-  if (locateActive) return;             // don't paint over the USB locate red
-  if (identifyUntil > millis()) return; // don't disturb a locate-me blink in progress
   if (hex.length() >= 7 && hex[0] == '#') {
     long val = strtol(hex.substring(1).c_str(), NULL, 16);
-    uint8_t r = (val >> 16) & 0xFF;
-    uint8_t g = (val >> 8) & 0xFF;
-    uint8_t b = val & 0xFF;
-    showSolid(r, g, b);
+    lastR = (val >> 16) & 0xFF;
+    lastG = (val >> 8) & 0xFF;
+    lastB = val & 0xFF;
   } else {
-    showSolid(0, 0, 0);
+    lastR = lastG = lastB = 0;
   }
+  haveValidColor = true;
+  if (locateActive) return;             // don't paint over the USB locate red
+  if (identifyUntil > millis()) return; // don't disturb a locate-me blink in progress
+  showSolid(lastR, lastG, lastB);
+}
+
+inline void renderLastColor() { showSolid(lastR, lastG, lastB); }
+
+// Central LED authority. Decides what the pixel shows from the current link
+// state, and holds the last tally color through a brief WiFi/Companion blip so a
+// flaky link doesn't strobe the light. Call it from every loop that drives the
+// LED (main loop, WiFi-connect wait, Companion-connect retry).
+void updateStatusLed() {
+  // Cap refresh ~50 Hz. strip.show() briefly masks interrupts, and a fresh
+  // KEY-STATE already paints instantly via applyColorHex -- this path only
+  // re-asserts / animates, so it needn't run every loop iteration.
+  static unsigned long lastLedMs = 0;
+  if (millis() - lastLedMs < 20) return;
+  lastLedMs = millis();
+
+  if (locateActive) { showSolid(255, 0, 0); return; }          // USB hover-locate
+  if (identifyUntil > millis()) { identifyBlinkStep(); return; } // manager "identify"
+
+  bool synced = (WiFi.status() == WL_CONNECTED) && client.connected() && (phase == PHASE_SYNCED);
+  if (synced) {
+    lastLinkOkMs = millis();
+    renderLastColor();
+    return;
+  }
+
+  // Brief outage -> keep showing the last known tally state (almost always still
+  // correct; Companion re-sends on reconnect).
+  if (haveValidColor && (millis() - lastLinkOkMs < LINK_HOLD_MS)) {
+    renderLastColor();
+    return;
+  }
+
+  // Sustained outage -> show the honest connection status.
+  if (WiFi.status() != WL_CONNECTED) indicatorStep(settings.wifi_indicator, 0, 0, 255);
+  else indicatorStep(settings.companion_indicator, 255, 0, 0);
 }
 
 void handleLine(String line) {
@@ -465,7 +506,7 @@ void connectToCompanion() {
   deviceRegistered = false;
   phase = PHASE_COMPANION;
   rxBuffer = "";
-  indicatorStep(settings.companion_indicator, 255, 0, 0); // keep the "connecting" indicator animating during retries
+  updateStatusLed(); // hold last color through a brief reconnect; red only if sustained
 
   int port = settings.companion_port.toInt();
   if (port <= 0) port = 16622;
@@ -535,13 +576,9 @@ void handleSerialCommand(const String& line) {
       res["error"] = "missing config";
     }
   } else if (cmd == "locate") {
-    bool on = req["on"] | false;
-    if (on) {
-      locateActive = true;
-      wasLocating = true;
-    } else {
-      locateActive = false; // loop() restores the mirrored color via wasLocating
-    }
+    // updateStatusLed() shows solid red while locateActive, and auto-restores the
+    // mirrored/held color when it clears -- no explicit restore needed.
+    locateActive = req["on"] | false;
   } else if (cmd == "reboot") {
     restartPending = true;
     restartAtMs = millis() + 300;
@@ -664,6 +701,7 @@ void loop() {
   }
 
   if (!servicesStarted) {
+    client.stop(); // WiFi just (re)connected -- drop any stale socket so we reconnect fresh fast
     startNetServices();
     servicesStarted = true;
   }
@@ -672,27 +710,9 @@ void loop() {
 
   if (restartPending && millis() > restartAtMs) ESP.restart(); // e.g. after an OTA
 
-  // USB locate (solid red) and the WiFi identify blink both override the
-  // mirrored color while active; locate wins if somehow both are on.
-  if (locateActive) {
-    showSolid(255, 0, 0);
-  } else if (wasLocating) {
-    wasLocating = false;
-    restoreLastColor();
-  } else if (identifyUntil > millis()) {
-    identifyBlinkStep();
-  } else if (wasIdentifying) {
-    wasIdentifying = false;
-    restoreLastColor();
-  }
-
   if (!client.connected()) {
     connectToCompanion();
     return;
-  }
-
-  if (phase != PHASE_SYNCED) {
-    indicatorStep(settings.companion_indicator, 255, 0, 0);
   }
 
   while (client.available()) {
@@ -713,4 +733,6 @@ void loop() {
   if (millis() - lastRxLine > RX_TIMEOUT_MS) {
     client.stop(); // will reconnect next loop
   }
+
+  updateStatusLed(); // single LED authority: mirror when synced, hold through a blip
 }
